@@ -1,0 +1,25 @@
+# 数据文件 (科大云盘，不纳入代码仓库)
+daily/
+metric/
+moneyflow/
+market/
+index_weight/
+news/
+stock_st/
+basic.csv
+trade_cal.csv
+
+# 缓存和输出
+cache/
+output/
+
+# 大型二进制文件
+深度学习基础大作业.pdf
+
+# 教授讲义
+教授讲义/
+
+# Python
+__pycache__/
+*.pyc
+.venv/

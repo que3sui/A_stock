@@ -1,0 +1,25 @@
+# 核心依赖 (PyTorch 需匹配 GPU 驱动, RTX 50 系必须 cu128)
+# 安装命令:
+#   conda create -n astock python=3.10
+#   conda activate astock
+#   pip install torch==2.11.0+cu128 --index-url https://download.pytorch.org/whl/cu128
+#   pip install -r requirements.txt
+
+# 深度学习
+torch==2.11.0+cu128
+
+# 数据处理
+numpy>=2.2,<3
+pandas>=2.3,<3
+pyarrow>=24,<25
+
+# 机器学习
+lightgbm>=4.6,<5
+scikit-learn>=1.7,<2
+
+# 可视化
+matplotlib>=3.10,<4
+
+# 工具
+tqdm>=4.67,<5
+jinja2>=3.1,<4
