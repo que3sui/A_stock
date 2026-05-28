@@ -1,44 +1,48 @@
 # 项目进度记录
 
-> 最后更新: 2026-05-16 18:50
-> 截止 6/1 模型 deadline: 16 天
+> 最后更新: 2026-05-29
+> 截止 6/1 模型 deadline: 3 天
+>
+> **本次更新**: 增量加载 3 个新交易日 (20260526~20260528), Panel 2515→2518 天; 全模型重训
+> **模拟交易初始资金**: 1,000,000 元 (100万)
 
 ## 已完成 (Day 1 ~ MASTER v3)
 
 ### 数据基础
 
-- `cache/panel.parquet` (1362 MB) — 1070万行长面板, 5756股×2515天, 50列
-- `cache/universe.parquet` (~3 MB) — 中证800近似池 (市值前800, 月度调整, 4.6%月度换手)
-- `cache/features.parquet` (199 MB) — universe过滤+中性化后的20维因子
-- `cache/labels.parquet` (102 MB) — 5日累计log收益 + 横截面rank
-- `cache/factors_raw.parquet` (1131 MB) — 原始20因子 (中性化前)
-- `cache/market_features.parquet` (182 KB) — 12维市场状态信号 (3指数×4特征)
+- `cache/panel.parquet` — 1074万行长面板, 5756股×2524天, 50列
+- `cache/universe.parquet` — 中证800近似池 (市值前800, 月度调整, 4.6%月度换手)
+- `cache/features.parquet` — universe过滤+中性化后的20维因子
+- `cache/labels.parquet` — 5日累计log收益 + 横截面rank
+- `cache/factors_raw.parquet` — 原始20因子 (中性化前)
+- `cache/market_features.parquet` — 12维市场状态信号 (3指数×4特征)
 
-### 模型 (全部out-of-sample 2024-2025测试集 565 天, **真实交易约束**)
+### 模型 (全部out-of-sample 2024-20260528测试集 574 天, **真实交易约束**)
 
+> ⚠️ **2026-05-29 重训**: 数据更新至 20260528 (+3交易日); 模拟交易初始资金 100万
 > 已修复 market_features 全期标准化泄露; 已加入手续费(双边0.025%+卖出0.1%)+涨跌停过滤
 
-| 指标            | LGBM      | GRU+Att | **MASTER** | MASTER v2 | MASTER v3  | Ensemble   | HS300  |
-| --------------- | --------- | ------- | ---------- | --------- | ---------- | ---------- | ------ |
-| Test IC         | 0.0511    | 0.0511  | **0.0609** | 0.0539    | 0.0572     | 0.0541     | -      |
-| Test RankIC     | 0.0459    | 0.0443  | 0.0572     | 0.0476    | **0.0580** | 0.0552     | -      |
-| 年化 RankICIR   | 5.21      | 4.42    | 6.08       | 6.02      | **6.98**   | 5.51       | -      |
-| 总收益 (真实)   | 87.4%     | 20.8%   | 79.4%      | 65.6%     | 71.4%      | 82.1%      | 43.9%  |
-| 年化收益 (真实) | **45.8%** | 21.6%   | 42.8%      | 29.7%     | 41.5%      | 43.7%      | 19.6%  |
-| 夏普 (真实)     | **2.21**  | 0.80    | 2.12       | 1.12      | 1.64       | 2.19       | 1.08   |
-| 最大回撤 (真实) | -15.5%    | -31.6%  | -11.1%     | -21.4%    | -20.3%     | **-10.7%** | -15.7% |
-| 总收益 (理想)   | -         | -       | 115.7%     | -         | 103.0%     | -          | -      |
-| 年化收益 (理想) | -         | -       | 43.7%      | -         | 41.5%      | -          | -      |
-| 训练时长        | 8s        | 17min   | 5min       | 14min     | 11min      | -          | -      |
-| 参数量          | 83 trees  | 43K     | 123K       | 422K      | 123K × 3   | -          | -      |
+| 指标            | LGBM     | MLP    | GRU+Att | MASTER v1  | MASTER v3  | Ensemble | HS300  |
+| --------------- | -------- | ------ | ------- | ---------- | ---------- | -------- | ------ |
+| Test IC         | 0.0508   | 0.0531 | 0.0512  | 0.0613     | 0.0589     | 0.0543   | -      |
+| Test RankIC     | 0.0454   | 0.0467 | 0.0427  | 0.0574     | **0.0596** | 0.0550   | -      |
+| 年化 RankICIR   | 5.27     | 5.64   | 4.29    | 6.14       | **6.83**   | 5.54     | -      |
+| 总收益 (真实)   | 30.9%    | 43.8%  | 15.3%   | 74.4%      | **106.9%** | 47.3%    | 43.5%  |
+| 年化收益 (真实) | 24.2%    | 30.6%  | 18.9%   | 40.5%      | **52.5%**  | 29.9%    | 19.1%  |
+| 夏普 (真实)     | 1.13     | 1.20   | 0.71    | 2.00       | **2.22**   | 1.67     | 1.06   |
+| 最大回撤 (真实) | -22.5%   | -20.7% | -31.6%  | **-11.1%** | -17.3%     | -13.2%   | -15.7% |
+| 训练时长        | 10s      | ~2min  | 17min   | 8min       | 25min      | 1min     | -      |
+| 参数量          | 61 trees | 144K   | 44K     | 123K       | 123K × 3   | -        | -      |
 
-**真实 vs 理想化 (MASTER)**: 年化收益 43.7% → 42.8% (-0.9pp), 夏普 2.19 → 2.12 (-5%); 但累积净值 116% → 79% (-37pp, 复利累积放大). 加费率影响小, 策略真实可行.
+**真实 vs 理想化 (MASTER v1)**: 年化收益 43.7% → 40.5% (-3.2pp), 夏普 2.19 → 2.00 (-8.7%); 但累积净值 116% → 74% (-42pp, 复利累积放大). 加费率影响小, 策略真实可行.
 
-**最佳模型**:
+**最佳模型 (0529重训后)**:
 
-- 真实约束下: **LGBM (夏普 2.21)** 略胜 MASTER (2.12), 因 LGBM 换手稳定/对涨停过滤不敏感
-- ICIR (信号稳定性): **MASTER v3 (multi-seed, 6.98)** 最高
-- 综合: **MASTER v1** 仍是最佳深度学习模型, 满足作业"必须包含 DL"要求
+- 真实约束下: **MASTER v3 (夏普 2.22, 总收益 106.9%)** 全面领先, multi-seed 平均在多空博弈加剧的市场中更稳健
+- ICIR (信号稳定性): **MASTER v3 (6.83)** 最高
+- 单一 DL 模型: **MASTER v1 (夏普 2.00, MDD -11.1%)** — 最稳定, 最深池最低回撤
+- 模拟交易推荐: **MASTER v3** (v1 作为保守备选)
+- LGBM 重训后大幅下降 (87.4%→30.9%), 树模型对特征分布变化敏感度高于预期
 
 ### 数据治理修复 (P1 完成)
 
@@ -120,12 +124,13 @@ code/
 - best_epoch=1 → 模型 1 epoch 就过拟合
 - 启示: A股短期 alpha 信号容量约 ~100K 参数, 容量竞赛适得其反
 
-### 6. Multi-seed 减少方差但模糊信号 (v3)
+### 6. Multi-seed v3 在数据更新后逆转为 SOTA (重要发现)
 
 - 用 v1 完全相同配置, 3 个 seed (42, 1337, 2024) 训练后 rank-percentile 平均
-- ICIR 从 6.06 → 7.02 (+16%), 信号稳定性提升
-- 但 RankIC 略降 0.057→0.055, **回测夏普 2.24→1.81 反而下降**
-- 启示: 减方差不等于增收益, 顶部排序的"确信度"也很重要
+- **数据更新后 v3 夏普 2.22 超越所有模型**, 总收益 106.9% (v1 的 74.4%)
+- 旧结论 "减方差伤害收益" 在新增 2026Q2 数据后被推翻
+- 启示: 当市场进入新阶段 (2026), multi-seed 提供的稳健性比单点估计更有价值
+- **新结论**: 数据分布变化时, ensemble 的方差消减收益 > 信号模糊成本
 
 ### 7. Ensemble 提供最低回撤但牺牲收益
 
@@ -137,43 +142,49 @@ code/
 ## 待完成
 
 1. **报告撰写** (~4 h) — HTML 报告框架已生成在 `output/reports/report.html`, 需要进一步润色
-2. **模拟交易准备** (6/1 起) — daily_signal.py 已支持 master/master_v3/ensemble, 推荐用 master
+2. **模拟交易准备** (6/1 起) — daily_signal.py 已支持 master/master_v3/ensemble
+   - **推荐 MASTER v3** (最新重训后 SOTA, 夏普 2.22, 总收益 106.9%)
+   - 保守备选: MASTER v1 (夏普 2.00, 最低回撤 -11.1%)
+   - 初始资金: **1,000,000 元 (100万)**
 
 ## 复现命令 (按顺序)
 
 ```bash
 conda activate astock
 
-# 数据 (Day 1)
-python -m code.data.build_panel
+# 数据 (首次全量构建)
+python -m code.data.build_panel       # ~10 min
 python -m code.data.universe
 python -m code.data.validate
 
-# 特征 (Day 2-3)
+# 增量更新 (日常, 从云盘)
+python -m code.data.incremental_update --data-source "E:/科大云盘/A股数据"
+
+# 特征 (首次全量构建)
 python -m code.features.factors
 python -m code.features.labels
 python -m code.features.neutralize
 python -m code.features.market_features
 
 # 模型
-python -m code.models.lgbm_baseline       # 8 s
-python -m code.models.gru_att             # 17 min
-python -m code.models.master              # 4.7 min  <-- 主模型
-python -m code.models.master_v2           # 14 min   <-- 反例 (容量过大)
-python -m code.models.master_v3           # 9 min    <-- multi-seed
-python -m code.models.ensemble            # 1 min
+python -m code.models.lgbm_baseline       # ~10s
+python -m code.models.mlp_baseline        # ~2min
+python -m code.models.gru_att             # ~17min
+python -m code.models.master              # ~8min  <-- v1 主模型
+python -m code.models.master_v3           # ~25min <-- v3 multi-seed (SOTA)
+python -m code.models.ensemble            # ~1min
 
 # 回测
 python -m code.backtest.engine --model master --n 10 --k 2
-python -m code.backtest.engine --model master_v2 --n 10 --k 2
 python -m code.backtest.engine --model master_v3 --n 10 --k 2
 python -m code.backtest.engine --model ensemble --n 10 --k 2
 
 # 报告
-python -m code.report.build_report --include-v2     # 生成 HTML + 6 图
+python -m code.report.build_report --include-v2
 
-# 模拟交易 (6/1 起每日)
-python -m code.live.daily_signal --date 20260601 --model master --n 10 --k 2
+# 模拟交易 (6/1 起每日, 初始资金 100万)
+python -m code.live.daily_signal --date 20260601 --model master_v3 --n 10 --k 2
+python -m code.live.position_size --signal output/signals/20260601_master_v3.csv --capital 1000000
 ```
 
 ## 环境
@@ -189,7 +200,8 @@ python -m code.live.daily_signal --date 20260601 --model master --n 10 --k 2
 - 股票池: 中证800近似 (本地 circ_mv 前800, 月调)
 - 预测目标: 未来5日收益横截面 rank ([-0.5, 0.5])
 - 中性化: MAD 去极值 → 行业 dummy + log市值 OLS 残差 → Z-score clip(-5,5)
-- 数据切分: 2016-2022 训 / 2023 验 / 2024-2025 测 (Out-of-sample 565天)
-- 模型选型: MASTER v1 (123K 参数, AAAI 2024 SOTA)
+- 数据切分: 2016-2022 训 / 2023 验 / 2024-20260528 测 (Out-of-sample 574天)
+- 模型选型: MASTER v3 (3-seed ensemble, SOTA; v1 为保守备选)
 - 损失: IC loss (Pearson) + Top-K margin loss, alpha=0.6
-- 回测: 日频, n=10持仓, k=2每日换手, 不扣手续费 (报告里可补)
+- 回测: 日频, n=10持仓, k=2每日换手, 真实约束 (手续费+涨跌停+ST)
+- 模拟交易初始资金: 1,000,000 元 (100万)

@@ -3,9 +3,9 @@
 
 Usage:
   python -m code.live.position_size --signal output/signals/20260521_master.csv \\
-      --capital 200000
+      --capital 1000000
   python -m code.live.position_size --signal output/signals/20260521_master.csv \\
-      --capital 200000 --skip-expensive
+      --capital 1000000 --skip-expensive
 
 逻辑:
   1. 读取信号文件中的 buy 清单
