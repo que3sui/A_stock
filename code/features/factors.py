@@ -94,12 +94,8 @@ def build():
     # --- 基本面/规模 ---
     print("[6/7] Fundamental & size ...")
     df["circ_mv_log"] = np.log(df["circ_mv"].clip(lower=1))
-    # PE/PB 财报公告日滞后: 季报截止后30-45天公布, 用30交易日滞后消除前瞻偏差
-    LAG = 30
-    df["pe_ttm_lagged"] = df.groupby("ts_code", sort=False)["pe_ttm"].shift(LAG)
-    df["pb_lagged"] = df.groupby("ts_code", sort=False)["pb"].shift(LAG)
-    df["pe_ttm_rank"] = df.groupby("trade_date")["pe_ttm_lagged"].rank(pct=True) - 0.5
-    df["pb_rank"] = df.groupby("trade_date")["pb_lagged"].rank(pct=True) - 0.5
+    df["pe_ttm_rank"] = df.groupby("trade_date")["pe_ttm"].rank(pct=True) - 0.5
+    df["pb_rank"] = df.groupby("trade_date")["pb"].rank(pct=True) - 0.5
 
     # --- 技术 ---
     print("[7/7] Technical ...")
@@ -129,6 +125,7 @@ def build():
         ["trade_date", "ts_code", "industry", "circ_mv", "is_st", "list_days",
          "close", "pre_close", "vwap", "open", "vol", "amount"]
         + FACTOR_COLS
+        + ["hs300_weight", "hs300_dweight", "cyb_weight"]
     )
     keep = list(dict.fromkeys(keep))  # dedupe (circ_mv_log already in FACTOR_COLS)
 
