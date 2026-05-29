@@ -88,6 +88,7 @@ def main():
     print("-" * 72)
 
     total_actual = 0
+    results = []
     for _, row in buys.iterrows():
         code = row["ts_code"]
         name = row["name"]
@@ -96,13 +97,27 @@ def main():
         lots = max(0, int(equal / lot_val))
         actual = lots * lot_val
         total_actual += actual
-        pct = actual / total * 100
+        results.append({"code": code, "name": name, "price": price,
+                       "lot_val": lot_val, "lots": lots, "actual": actual})
+
+    # 余钱再分配: 按 lot_val 从小到大的顺序, 尝试给每只加 1 手
+    cash_left = total - total_actual
+    results.sort(key=lambda x: x["lot_val"])
+    for r in results:
+        if cash_left >= r["lot_val"] and r["lots"] > 0:
+            r["lots"] += 1
+            r["actual"] += r["lot_val"]
+            total_actual += r["lot_val"]
+            cash_left = total - total_actual
+
+    for r in results:
+        pct = r["actual"] / total * 100
         bar = "█" * int(pct / 2)
-        print(f"{code:<12s} {name:<8s} {price:>8.2f} {lot_val:>10,.0f} {lots:>8d} {actual:>10,.0f} {pct:>5.1f}% {bar}")
+        print(f"{r['code']:<12s} {r['name']:<8s} {r['price']:>8.2f} {r['lot_val']:>10,.0f} "
+              f"{r['lots']:>8d} {r['actual']:>10,.0f} {pct:>5.1f}% {bar}")
 
     print("-" * 72)
     print(f"{'合计':<12s} {'':<8s} {'':>8s} {'':>10s} {'':>8s} {total_actual:>10,.0f} {total_actual/total*100:>5.1f}%")
-    cash_left = total - total_actual
     print(f"剩余现金: {cash_left:,.0f} 元 ({cash_left/total*100:.1f}%)")
 
 
