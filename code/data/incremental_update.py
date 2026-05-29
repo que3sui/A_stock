@@ -503,12 +503,29 @@ def update_market_features(new_dates, data_src):
         full = full.merge(f, on="trade_date", how="outer")
     full = full.sort_values("trade_date").reset_index(drop=True)
 
+    # 市场级新闻特征
+    from code.features.news_sentiment import compute_market_news_features
+    news_feats = compute_market_news_features(data_src)
+    if not news_feats.empty:
+        full = full.merge(news_feats, on="trade_date", how="left")
+        for c in ["news_count", "news_sentiment_mean", "news_sentiment_std"]:
+            full[c] = full[c].fillna(0.0)
+
     feat_cols = [c for c in full.columns if c != "trade_date"]
+    news_cols = ["news_count", "news_sentiment_mean", "news_sentiment_std"]
 
     # 加载或保存标准化参数
     if MARKET_STATS_FILE.exists():
         with open(MARKET_STATS_FILE) as f:
             train_stats = json.load(f)
+        # 补全新列 (存量 stats 可能没有新闻列)
+        train_mask = full["trade_date"] <= TRAIN_MAX
+        for c in news_cols:
+            if c not in train_stats and c in full.columns:
+                train_stats[c] = [float(full.loc[train_mask, c].mean()),
+                                  float(full.loc[train_mask, c].std())]
+        with open(MARKET_STATS_FILE, "w") as f:
+            json.dump(train_stats, f, indent=2)
         print(f"  Loaded normalization stats from {MARKET_STATS_FILE}")
     else:
         train_mask = full["trade_date"] <= TRAIN_MAX

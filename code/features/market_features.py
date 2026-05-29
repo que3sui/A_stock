@@ -52,8 +52,16 @@ def build():
 
     df = df.sort_values("trade_date").reset_index(drop=True)
 
+    # 市场级新闻特征 (merge before normalization)
+    from code.features.news_sentiment import compute_market_news_features
+    news_feats = compute_market_news_features(ROOT)
+    if not news_feats.empty:
+        df = df.merge(news_feats, on="trade_date", how="left")
+        for c in ["news_count", "news_sentiment_mean", "news_sentiment_std"]:
+            df[c] = df[c].fillna(0.0)
+        print(f"  news features merged: {len(news_feats)} days")
+
     # 时间维度 Z-score: 必须用 train 段 (<=2022) 的 mean/std, 避免未来函数泄露
-    # 否则测试集 (2024-2025) 的 market features 已经用了未来均值/方差
     feat_cols = [c for c in df.columns if c != "trade_date"]
     TRAIN_MAX = 20221231
     train_mask = df["trade_date"] <= TRAIN_MAX
