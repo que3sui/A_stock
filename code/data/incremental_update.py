@@ -37,6 +37,7 @@ FACTOR_COLS = [
     "pe_ttm_rank", "pb_rank", "circ_mv_log",
     "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
 ]
+WEIGHT_COLS = ["hs300_weight", "hs300_dweight", "cyb_weight"]
 
 MARKET_STATS_FILE = CACHE / "market_feature_stats.json"
 MAX_ROLLING = 150  # 超过 max(mom_120, vol_60) 的 buffer
@@ -441,6 +442,8 @@ def update_features(new_dates):
 
     keep = (["trade_date", "ts_code", "industry", "circ_mv", "close", "open", "vwap"]
             + FACTOR_COLS)
+    extra_cols = [c for c in WEIGHT_COLS if c in new_factors.columns]
+    keep = keep + extra_cols
     new_features = new_factors[keep]
 
     if features_path.exists():

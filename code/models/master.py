@@ -39,8 +39,11 @@ FACTOR_COLS = [
     "pe_ttm_rank", "pb_rank", "circ_mv_log",
     "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
 ]
+# 非中性化通道: 指数权重 (原始值, 不做行业/市值残差)
+WEIGHT_COLS = ["hs300_weight", "hs300_dweight", "cyb_weight"]
 T = 20
 N_FEAT = len(FACTOR_COLS)
+N_WEIGHT = len(WEIGHT_COLS)
 TRAIN_MAX = 20221231
 VALID_MAX = 20231231
 
@@ -48,11 +51,12 @@ VALID_MAX = 20231231
 # ========== Dataset ==========
 
 class DailyPanelDataset(Dataset):
-    """每个样本是一天: (X[N,T,F], market[T,Fm], y[N], date)"""
+    """每个样本是一天: (X[N,T,F], X_w[N,T,Fw], market[T,Fm], y[N], date)"""
 
     def __init__(self, X, y, trade_dates, ts_codes,
-                 market_X, market_date_idx, T, min_stocks=30):
+                 market_X, market_date_idx, T, X_w=None, min_stocks=30):
         self.X = X
+        self.X_w = X_w  # 权重通道 (非中性化), 可为 None
         self.y = y
         self.trade_dates = trade_dates
         self.market_X = market_X
@@ -85,9 +89,7 @@ class DailyPanelDataset(Dataset):
     def __getitem__(self, i):
         date = self.dates[i]
         endpoints = self.date_to_endpoints[date]
-        # X[end-T+1 : end+1] for each endpoint
         starts = endpoints - self.T + 1
-        # 用 fancy indexing
         rng = np.arange(self.T)
         idx_2d = starts[:, None] + rng[None, :]  # [N, T]
         X_d = self.X[idx_2d]                     # [N, T, F]
@@ -97,12 +99,20 @@ class DailyPanelDataset(Dataset):
         m_end = self.market_date_idx[date]
         market_window = self.market_X[m_end - self.T + 1 : m_end + 1]  # [T, Fm]
 
+        # Weight channel (optional)
+        if self.X_w is not None:
+            X_w_d = self.X_w[idx_2d]             # [N, T, Fw]
+            X_w_d = torch.from_numpy(X_w_d.copy())
+        else:
+            X_w_d = torch.zeros(0)
+
         return (
             torch.from_numpy(X_d.copy()),
             torch.from_numpy(market_window.copy()),
             torch.from_numpy(y_d.copy()),
             int(date),
             endpoints,
+            X_w_d,
         )
 
 
@@ -129,14 +139,22 @@ class PositionalEncoding(nn.Module):
 
 class MASTER(nn.Module):
     def __init__(self, F_stock=20, F_market=12, H=64, T=20, nhead=4, dropout=0.2,
-                 n_intra_layers=2, n_inter_layers=1):
+                 n_intra_layers=2, n_inter_layers=1, F_weight=0):
         super().__init__()
+        self.F_weight = F_weight
+        H_stock = H * 3 // 4 if F_weight > 0 else H
+        H_weight = H - H_stock if F_weight > 0 else 0
+
         # Market guidance
         self.market_proj = nn.Linear(F_market, H)
         self.gate_proj = nn.Linear(H, F_stock)
 
-        # Stock embedding
-        self.stock_proj = nn.Linear(F_stock, H)
+        # Stock embedding (中性化因子)
+        self.stock_proj = nn.Linear(F_stock, H_stock)
+        # Weight embedding (非中性化权重, 独立通道)
+        if F_weight > 0:
+            self.weight_proj = nn.Linear(F_weight, H_weight)
+
         self.pos_enc = PositionalEncoding(H, max_len=T + 4)
 
         # Intra-stock Transformer (temporal axis)
@@ -146,7 +164,7 @@ class MASTER(nn.Module):
         )
         self.intra_tx = nn.TransformerEncoder(intra_layer, num_layers=n_intra_layers)
 
-        # Temporal aggregation: 学习的 query 做 attention pooling
+        # Temporal aggregation
         self.temp_query = nn.Parameter(torch.randn(1, 1, H) * 0.02)
         self.temp_attn = nn.MultiheadAttention(H, nhead, dropout=dropout, batch_first=True)
 
@@ -167,38 +185,47 @@ class MASTER(nn.Module):
         )
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, X, market):
+    def forward(self, X, market, X_w=None):
         """
-        X: [N, T, F_stock]
-        market: [T, F_market]
+        X:    [N, T, F_stock]  中性化因子
+        market: [T, F_market]  市场状态
+        X_w:  [N, T, F_weight] 非中性化权重 (可选)
         Returns: scores [N]
         """
         N, T_in, _ = X.shape
 
-        # Market guidance gate
-        m_emb = self.market_proj(market)          # [T, H]
+        # Market guidance gate (仅调制中性化因子)
+        m_emb = self.market_proj(market)             # [T, H]
         gate = torch.sigmoid(self.gate_proj(m_emb))  # [T, F_stock]
-        X = X * gate.unsqueeze(0)                 # [N, T, F_stock]
+        X = X * gate.unsqueeze(0)                    # [N, T, F_stock]
 
-        # Stock projection + pos enc
-        Z = self.stock_proj(X)                    # [N, T, H]
+        # Stock projection
+        Z_stock = self.stock_proj(X)                  # [N, T, H_stock]
+
+        # Weight projection (独立通道, 不经过 gate)
+        if self.F_weight > 0 and X_w is not None and X_w.numel() > 0:
+            Z_weight = self.weight_proj(X_w)          # [N, T, H_weight]
+            Z = torch.cat([Z_stock, Z_weight], dim=-1)  # [N, T, H]
+        else:
+            Z = Z_stock
+
         Z = self.pos_enc(Z)
         Z = self.dropout(Z)
 
         # Intra-stock temporal Transformer
-        Z = self.intra_tx(Z)                      # [N, T, H]
+        Z = self.intra_tx(Z)                          # [N, T, H]
 
         # Temporal aggregation (attention pooling)
-        q = self.temp_query.expand(N, -1, -1)     # [N, 1, H]
-        Z_t, _ = self.temp_attn(q, Z, Z)          # [N, 1, H]
-        Z_t = Z_t.squeeze(1)                      # [N, H]
+        q = self.temp_query.expand(N, -1, -1)         # [N, 1, H]
+        Z_t, _ = self.temp_attn(q, Z, Z)              # [N, 1, H]
+        Z_t = Z_t.squeeze(1)                          # [N, H]
 
         # Inter-stock cross-sectional Transformer
         Z_c = self.inter_tx(Z_t.unsqueeze(0)).squeeze(0)  # [N, H]
 
         # Residual + head
         Z_final = Z_t + Z_c
-        return self.head(Z_final).squeeze(-1)     # [N]
+        return self.head(Z_final).squeeze(-1)
 
 
 # ========== Loss ==========
@@ -233,9 +260,11 @@ def combined_loss(scores, labels, alpha=0.5):
 def evaluate(model, loader, device, code_uniq):
     model.eval()
     rows = []
-    for X_d, m_d, y_d, date, endpoints in loader:
-        X_d, m_d = X_d.to(device, non_blocking=True), m_d.to(device, non_blocking=True)
-        scores = model(X_d, m_d).cpu().numpy()
+    for X_d, m_d, y_d, date, endpoints, X_w_d in loader:
+        X_d = X_d.to(device, non_blocking=True)
+        m_d = m_d.to(device, non_blocking=True)
+        X_w_d = X_w_d.to(device, non_blocking=True) if X_w_d.numel() > 0 else None
+        scores = model(X_d, m_d, X_w_d).cpu().numpy()
         for s, y, end in zip(scores, y_d.numpy(), endpoints):
             rows.append({"trade_date": date, "ep": int(end), "score": float(s), "label": float(y)})
     df = pd.DataFrame(rows)
@@ -265,13 +294,17 @@ def prepare(features_df, labels_df, market_df):
     code_uniq, code_int = np.unique(df["ts_code"].values, return_inverse=True)
     ts_codes = code_int.astype(np.int64)
 
+    # 权重通道 (非中性化, 可选)
+    weight_cols_present = [c for c in WEIGHT_COLS if c in df.columns]
+    X_w = df[weight_cols_present].fillna(0).values.astype(np.float32) if weight_cols_present else None
+
     # Market features
     market_df = market_df.sort_values("trade_date").reset_index(drop=True)
     market_cols = [c for c in market_df.columns if c != "trade_date"]
     market_X = market_df[market_cols].fillna(0).values.astype(np.float32)
     market_date_idx = {int(d): i for i, d in enumerate(market_df["trade_date"].values)}
 
-    return X, y, trade_dates, ts_codes, code_uniq, market_X, market_date_idx, df
+    return X, y, trade_dates, ts_codes, code_uniq, market_X, market_date_idx, df, X_w
 
 
 def main():
@@ -288,13 +321,16 @@ def main():
     market = pd.read_parquet(CACHE / "market_features.parquet")
 
     print("Preparing ...")
-    X, y, trade_dates, ts_codes, code_uniq, market_X, market_date_idx, df_full = prepare(
+    X, y, trade_dates, ts_codes, code_uniq, market_X, market_date_idx, df_full, X_w = prepare(
         feats, labels, market
     )
+    has_weight = X_w is not None
+    if has_weight:
+        print(f"  weight channel: {X_w.shape[1]} cols")
 
     # 构造一个汇总 Dataset, 然后按日期 split
     print("Building dataset ...")
-    full_ds = DailyPanelDataset(X, y, trade_dates, ts_codes, market_X, market_date_idx, T)
+    full_ds = DailyPanelDataset(X, y, trade_dates, ts_codes, market_X, market_date_idx, T, X_w=X_w)
 
     # 按日期 split
     train_dates = [d for d in full_ds.dates if d <= TRAIN_MAX]
@@ -306,6 +342,7 @@ def main():
     def make_sub(dates):
         sub = object.__new__(DailyPanelDataset)
         sub.X = full_ds.X
+        sub.X_w = full_ds.X_w
         sub.y = full_ds.y
         sub.trade_dates = full_ds.trade_dates
         sub.market_X = full_ds.market_X
@@ -327,8 +364,10 @@ def main():
                              collate_fn=collate_single)
 
     F_market = market_X.shape[1]
+    F_weight = N_WEIGHT if has_weight else 0
     model = MASTER(F_stock=N_FEAT, F_market=F_market, H=64, T=T,
-                   nhead=4, dropout=0.2, n_intra_layers=2, n_inter_layers=1).to(device)
+                   nhead=4, dropout=0.2, n_intra_layers=2, n_inter_layers=1,
+                   F_weight=F_weight).to(device)
     nparams = sum(p.numel() for p in model.parameters())
     print(f"\nModel: {nparams:,} params")
 
@@ -346,11 +385,12 @@ def main():
     for epoch in range(max_epochs):
         model.train()
         losses = []
-        for X_d, m_d, y_d, _, _ in train_loader:
+        for X_d, m_d, y_d, _, _, X_w_d in train_loader:
             X_d = X_d.to(device, non_blocking=True)
             m_d = m_d.to(device, non_blocking=True)
             y_d = y_d.to(device, non_blocking=True)
-            pred = model(X_d, m_d)
+            X_w_d = X_w_d.to(device, non_blocking=True) if X_w_d.numel() > 0 else None
+            pred = model(X_d, m_d, X_w_d)
             loss = combined_loss(pred, y_d, alpha=0.6)
             opt.zero_grad()
             loss.backward()

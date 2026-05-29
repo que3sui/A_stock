@@ -27,7 +27,7 @@ from pathlib import Path
 from code.models.master import (
     MASTER, DailyPanelDataset, collate_single,
     combined_loss, evaluate, prepare,
-    FACTOR_COLS, T, N_FEAT, TRAIN_MAX, VALID_MAX,
+    FACTOR_COLS, T, N_FEAT, N_WEIGHT, TRAIN_MAX, VALID_MAX,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -47,13 +47,13 @@ def train_one_seed(seed, X, y, trade_dates, ts_codes, market_X, market_date_idx,
     def make_sub(dates):
         sub = object.__new__(DailyPanelDataset)
         sub.X = X
+        sub.X_w = X_w
         sub.y = y
         sub.trade_dates = trade_dates
         sub.market_X = market_X
         sub.market_date_idx = market_date_idx
         sub.T = T
         sub.dates = dates
-        # 共享 endpoints
         sub.date_to_endpoints = full_endpoints
         return sub
 
@@ -69,8 +69,10 @@ def train_one_seed(seed, X, y, trade_dates, ts_codes, market_X, market_date_idx,
                              collate_fn=collate_single)
 
     F_market = market_X.shape[1]
+    F_weight = N_WEIGHT if X_w is not None else 0
     model = MASTER(F_stock=N_FEAT, F_market=F_market, H=64, T=T,
-                   nhead=4, dropout=0.2, n_intra_layers=2, n_inter_layers=1).to(device)
+                   nhead=4, dropout=0.2, n_intra_layers=2, n_inter_layers=1,
+                   F_weight=F_weight).to(device)
 
     opt = torch.optim.AdamW(model.parameters(), lr=5e-4, weight_decay=1e-3)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=20)
@@ -85,9 +87,10 @@ def train_one_seed(seed, X, y, trade_dates, ts_codes, market_X, market_date_idx,
     for epoch in range(max_epochs):
         model.train()
         losses = []
-        for X_d, m_d, y_d, _, _ in train_loader:
+        for X_d, m_d, y_d, _, _, X_w_d in train_loader:
             X_d, m_d, y_d = X_d.to(device), m_d.to(device), y_d.to(device)
-            pred = model(X_d, m_d)
+            X_w_d = X_w_d.to(device) if X_w_d.numel() > 0 else None
+            pred = model(X_d, m_d, X_w_d)
             loss = combined_loss(pred, y_d, alpha=0.6)
             opt.zero_grad()
             loss.backward()
@@ -135,12 +138,14 @@ def main():
     market = pd.read_parquet(CACHE / "market_features.parquet")
 
     print("Preparing ...")
-    X, y, trade_dates, ts_codes, code_uniq, market_X, market_date_idx, df_full = prepare(
+    X, y, trade_dates, ts_codes, code_uniq, market_X, market_date_idx, df_full, X_w = prepare(
         feats, labels, market
     )
+    if X_w is not None:
+        print(f"  weight channel: {X_w.shape[1]} cols")
 
     print("Building dataset ...")
-    full_ds = DailyPanelDataset(X, y, trade_dates, ts_codes, market_X, market_date_idx, T)
+    full_ds = DailyPanelDataset(X, y, trade_dates, ts_codes, market_X, market_date_idx, T, X_w=X_w)
     global full_endpoints
     full_endpoints = full_ds.date_to_endpoints
 

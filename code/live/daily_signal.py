@@ -40,6 +40,7 @@ FACTOR_COLS = [
     "pe_ttm_rank", "pb_rank", "circ_mv_log",
     "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
 ]
+WEIGHT_COLS = ["hs300_weight", "hs300_dweight", "cyb_weight"]
 
 
 def predict_lgbm(features_df):
@@ -52,10 +53,14 @@ def predict_lgbm(features_df):
 
 
 def _gather_history(target_codes, target_date, all_features_df, T):
-    """对每只股票, 取 trade_date <= target_date 的最近 T 天 features, 缺失用 0 填"""
+    """对每只股票, 取 trade_date <= target_date 的最近 T 天 features, 缺失用 0 填.
+    Returns: (valid_codes, X, X_w) — X_w 为权重通道, 若列缺失则为 None"""
     hist = all_features_df[all_features_df["trade_date"] <= target_date]
     hist = hist[hist["ts_code"].isin(target_codes)]
     hist = hist.sort_values(["ts_code", "trade_date"])
+
+    weight_cols = [c for c in WEIGHT_COLS if c in hist.columns]
+    cols = FACTOR_COLS + weight_cols
 
     g = hist.groupby("ts_code", sort=False)
     X_list, valid_codes = [], []
@@ -63,13 +68,16 @@ def _gather_history(target_codes, target_date, all_features_df, T):
         if code in g.indices:
             grp = hist.iloc[g.indices[code]]
             if len(grp) >= T:
-                tail = grp.tail(T)[FACTOR_COLS].fillna(0).values.astype(np.float32)
+                tail = grp.tail(T)[cols].fillna(0).values.astype(np.float32)
                 X_list.append(tail)
                 valid_codes.append(code)
     if not X_list:
-        return np.array([]), np.array([], dtype=np.float32)
-    X = np.stack(X_list)
-    return np.array(valid_codes), X
+        return np.array([]), np.array([], dtype=np.float32), None
+    X_all = np.stack(X_list)
+    n_feat = len(FACTOR_COLS)
+    X = X_all[:, :, :n_feat]
+    X_w = X_all[:, :, n_feat:] if weight_cols else None
+    return np.array(valid_codes), X, X_w
 
 
 def predict_gru(features_df, all_features_df, T=20):
@@ -82,7 +90,7 @@ def predict_gru(features_df, all_features_df, T=20):
     model.eval()
 
     target_date = int(features_df["trade_date"].iloc[0])
-    codes, X = _gather_history(features_df["ts_code"].values, target_date, all_features_df, T)
+    codes, X, _ = _gather_history(features_df["ts_code"].values, target_date, all_features_df, T)
     if len(codes) == 0:
         return np.array([]), np.array([])
 
@@ -124,17 +132,19 @@ def predict_master_multiseed(features_df, all_features_df, market_df, seeds=(42,
 
 def _predict_master_with_ckpt(features_df, all_features_df, market_df, ckpt_path):
     """通用 master 推理 (任意 v1 风格 ckpt)"""
-    from code.models.master import MASTER, T as MASTER_T
+    from code.models.master import MASTER, T as MASTER_T, N_WEIGHT
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     F_market = len([c for c in market_df.columns if c != "trade_date"])
+    F_weight = N_WEIGHT if any(c in all_features_df.columns for c in WEIGHT_COLS) else 0
     model = MASTER(F_stock=len(FACTOR_COLS), F_market=F_market, H=64, T=MASTER_T,
-                   nhead=4, dropout=0.2, n_intra_layers=2, n_inter_layers=1).to(device)
+                   nhead=4, dropout=0.2, n_intra_layers=2, n_inter_layers=1,
+                   F_weight=F_weight).to(device)
     model.load_state_dict(torch.load(ckpt_path, map_location=device, weights_only=True))
     model.eval()
 
     target_date = int(features_df["trade_date"].iloc[0])
-    codes, X = _gather_history(features_df["ts_code"].values, target_date, all_features_df, MASTER_T)
+    codes, X, X_w = _gather_history(features_df["ts_code"].values, target_date, all_features_df, MASTER_T)
     if len(codes) == 0:
         return np.array([]), np.array([])
 
@@ -150,8 +160,9 @@ def _predict_master_with_ckpt(features_df, all_features_df, market_df, ckpt_path
 
     X_t = torch.from_numpy(X).to(device)
     m_t = torch.from_numpy(market_window).to(device)
+    X_w_t = torch.from_numpy(X_w).to(device) if X_w is not None else None
     with torch.no_grad():
-        scores = model(X_t, m_t).cpu().numpy()
+        scores = model(X_t, m_t, X_w_t).cpu().numpy()
     return codes, scores
 
 
@@ -168,11 +179,13 @@ def predict_master(features_df, all_features_df, market_df, version="v1"):
         ckpt_path = OUTPUT / "checkpoints" / "master_v2.pt"
         H, nhead, dropout = 96, 4, 0.25
         n_intra, n_inter = 3, 2
+        F_weight = 0
     else:
-        from code.models.master import MASTER as MasterCls, T
+        from code.models.master import MASTER as MasterCls, T, N_WEIGHT
         ckpt_path = OUTPUT / "checkpoints" / "master.pt"
         H, nhead, dropout = 64, 4, 0.2
         n_intra, n_inter = 2, 1
+        F_weight = N_WEIGHT if any(c in all_features_df.columns for c in WEIGHT_COLS) else 0
 
     F_market = len([c for c in market_df.columns if c != "trade_date"])
 
@@ -183,7 +196,8 @@ def predict_master(features_df, all_features_df, market_df, version="v1"):
     else:
         model = MasterCls(F_stock=len(FACTOR_COLS), F_market=F_market, H=H, T=T,
                           nhead=nhead, dropout=dropout,
-                          n_intra_layers=n_intra, n_inter_layers=n_inter).to(device)
+                          n_intra_layers=n_intra, n_inter_layers=n_inter,
+                          F_weight=F_weight).to(device)
 
     model.load_state_dict(torch.load(ckpt_path, map_location=device, weights_only=True))
     model.eval()
@@ -191,7 +205,7 @@ def predict_master(features_df, all_features_df, market_df, version="v1"):
     target_date = int(features_df["trade_date"].iloc[0])
 
     # Stock features
-    codes, X = _gather_history(features_df["ts_code"].values, target_date, all_features_df, T)
+    codes, X, X_w = _gather_history(features_df["ts_code"].values, target_date, all_features_df, T)
     if len(codes) == 0:
         return np.array([]), np.array([])
 
@@ -211,8 +225,9 @@ def predict_master(features_df, all_features_df, market_df, version="v1"):
 
     X_t = torch.from_numpy(X).to(device)
     m_t = torch.from_numpy(market_window).to(device)
+    X_w_t = torch.from_numpy(X_w).to(device) if X_w is not None and F_weight > 0 else None
     with torch.no_grad():
-        scores = model(X_t, m_t).cpu().numpy()
+        scores = model(X_t, m_t, X_w_t).cpu().numpy()
     return codes, scores
 
 

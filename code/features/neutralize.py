@@ -24,6 +24,8 @@ FACTOR_COLS = [
     "pe_ttm_rank", "pb_rank", "circ_mv_log",
     "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
 ]
+# 非中性化通道 (穿透, 原始值)
+WEIGHT_COLS = ["hs300_weight", "hs300_dweight", "cyb_weight"]
 
 
 def mad_clip(arr, k=5):
@@ -104,6 +106,11 @@ def build():
         ["trade_date", "ts_code", "industry", "circ_mv", "close", "open", "vwap"]
         + FACTOR_COLS
     )
+    # 穿透非中性化列 (权重等)
+    extra_cols = [c for c in WEIGHT_COLS if c in df.columns]
+    keep = keep + extra_cols
+    if extra_cols:
+        print(f"  pass-through: {extra_cols}")
     out = CACHE / "features.parquet"
     df[keep].to_parquet(out, index=False, compression="snappy")
     print(f"\nOK saved: {out} ({out.stat().st_size/1024/1024:.1f} MB)  total={time.time()-t0:.1f}s")
