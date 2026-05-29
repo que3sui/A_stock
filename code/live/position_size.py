@@ -120,13 +120,15 @@ def main():
     skipped = []
     if args.skip_expensive:
         affordable = []
+        threshold = total if args.greedy else total / len(buys)
         for _, row in buys.iterrows():
-            if row["lot_value"] <= total:
+            if row["lot_value"] <= threshold:
                 affordable.append(row)
             else:
                 skipped.append(row)
         if skipped:
-            print(f"\n  剔除 {len(skipped)} 只高价股 (>总资金):")
+            reason = "总资金" if args.greedy else f"等权{total/len(buys):,.0f}"
+            print(f"\n  剔除 {len(skipped)} 只高价股 (1手>{reason}):")
             for s in skipped:
                 print(f"    - {s['ts_code']} {s['name']} 收盘{s['close']:.2f} 1手需{s['lot_value']:,.0f}")
         buys = pd.DataFrame(affordable)
