@@ -174,7 +174,7 @@ output/
 - [x] README.md
 - [x] 完整源代码
 - [x] HTML 实验报告 (output/reports/report.html)
-- [ ] 组员姓名/学号/分工 (报告与 README)
+- [x] 组员姓名/学号/分工 (报告与 README)
 - [ ] 模拟交易截图 (6/12 后补)
 - [ ] 模拟交易经验总结 (6/12 后补)
 
