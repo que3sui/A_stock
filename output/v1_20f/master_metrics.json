@@ -1,0 +1,12 @@
+{
+  "test_days": 574,
+  "test_rows": 455144,
+  "best_val_rank_ic": 0.0690429153180021,
+  "best_epoch": 2,
+  "test_ic_mean": 0.06132332907160031,
+  "test_rank_ic_mean": 0.05743071273090686,
+  "test_rank_ic_std": 0.14840370467715625,
+  "test_rank_icir": 0.3869897249933674,
+  "test_rank_icir_annual": 6.143271433618364,
+  "n_params": 122837
+}
