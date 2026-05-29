@@ -52,8 +52,13 @@ def build():
 
     df = df.sort_values("trade_date").reset_index(drop=True)
 
-    # 市场级新闻特征暂时禁用 (news_count 未带来显著提升)
-    # from code.features.news_sentiment import compute_market_news_features
+    # 北向资金
+    from code.features.northbound import compute_northbound_features
+    nb = compute_northbound_features()
+    if not nb.empty:
+        df = df.merge(nb, on="trade_date", how="left")
+        df["northbound_net_5"] = df["northbound_net_5"].fillna(0.0)
+        print(f"  northbound merged: {len(nb)} days")
 
     # 时间维度 Z-score: 必须用 train 段 (<=2022) 的 mean/std, 避免未来函数泄露
     feat_cols = [c for c in df.columns if c != "trade_date"]
