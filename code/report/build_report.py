@@ -285,13 +285,13 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
 </p>
 
 <h3 style="background:#fff8e1;padding:10px;border-left:3px solid #f59f00;color:#8a4d00;">
-  组员: <em>请填入三位姓名 / 学号 / 分工</em>
+  组员: 阙宇涵 / 卞昌坤 / 徐郑潇
 </h3>
 <table style="width:60%;">
   <tr><th>姓名</th><th>学号</th><th>主要分工</th></tr>
-  <tr><td>{{ '<填>' }}</td><td>{{ '<SAxxxxx>' }}</td><td>数据预处理 + 特征工程 + 文档</td></tr>
-  <tr><td>{{ '<填>' }}</td><td>{{ '<SAxxxxx>' }}</td><td>模型设计与训练 + 消融实验</td></tr>
-  <tr><td>{{ '<填>' }}</td><td>{{ '<SAxxxxx>' }}</td><td>回测引擎 + 报告 + 模拟交易执行</td></tr>
+  <tr><td>阙宇涵</td><td>PB24261891</td><td>模型框架设计、代码编写运行与审查、实验内容设计与比较、模拟A股操盘</td></tr>
+  <tr><td>卞昌坤</td><td>PB24261894</td><td>代码运行与审查、模拟A股操盘</td></tr>
+  <tr><td>徐郑潇</td><td>PB24261893</td><td>代码运行与审查、模拟A股操盘</td></tr>
 </table>
 
 <h3 style="color:#2266cc;border-left:4px solid #2266cc;padding-left:12px;">摘要 (Abstract)</h3>

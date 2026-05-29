@@ -34,13 +34,13 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
 </p>
 
 <h3 style="background:#fff8e1;padding:10px;border-left:3px solid #f59f00;color:#8a4d00;">
-  组员: <em>请填入三位姓名 / 学号 / 分工</em>
+  组员: 阙宇涵 / 卞昌坤 / 徐郑潇
 </h3>
 <table style="width:60%;">
   <tr><th>姓名</th><th>学号</th><th>主要分工</th></tr>
-  <tr><td><填></td><td><SAxxxxx></td><td>数据预处理 + 特征工程 + 文档</td></tr>
-  <tr><td><填></td><td><SAxxxxx></td><td>模型设计与训练 + 消融实验</td></tr>
-  <tr><td><填></td><td><SAxxxxx></td><td>回测引擎 + 报告 + 模拟交易执行</td></tr>
+  <tr><td>阙宇涵</td><td>PB24261891</td><td>模型框架设计、代码编写运行与审查、实验内容设计与比较、模拟A股操盘</td></tr>
+  <tr><td>卞昌坤</td><td>PB24261894</td><td>代码运行与审查、模拟A股操盘</td></tr>
+  <tr><td>徐郑潇</td><td>PB24261893</td><td>代码运行与审查、模拟A股操盘</td></tr>
 </table>
 
 <h3 style="color:#2266cc;border-left:4px solid #2266cc;padding-left:12px;">摘要 (Abstract)</h3>
@@ -50,8 +50,8 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
   对比四类模型: <b>LightGBM</b> (树基线), <b>MLP</b> (DL 基线), <b>GRU+Attention</b> (单股时序),
   <b>MASTER</b> (AAAI 2024, 双轴 Transformer + Market-guided gating).
   在 565 天 out-of-sample (2024-01 ~ 2026-05) 真实交易约束 (T+1 + 涨跌停 + 双边 0.025% 佣金 + 卖出 0.1% 印花税) 下,
-  MASTER 取得年化收益 <b>59.4%</b> · 夏普 <b>2.35</b> · Calmar 3.87 ·
-  CAPM Alpha <b>21.5%</b> · Information Ratio <b>1.50</b> · 最大回撤 <b>-12.5%</b>,
+  MASTER 取得年化收益 <b>43.6%</b> · 夏普 <b>1.63</b> · Calmar 3.87 ·
+  CAPM Alpha <b>21.5%</b> · Information Ratio <b>1.50</b> · 最大回撤 <b>-21.7%</b>,
   显著超越沪深 300 基准. 报告呈现 7 个反直觉发现, 包括 IC 与实战收益不同步 / 容量增加反过拟合 /
   multi-seed 升 ICIR 反降 Sharpe / IC 长期衰减 + 2026Q2 信号反转 等.
   数据治理通过 8 项自动化泄露审计; 通过 (n, k) 4×4 网格证明默认 n=10/k=2 不是最优,
@@ -61,8 +61,8 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
 <div class="summary">
   <strong>核心结论</strong>:
   在 565 天 out-of-sample 测试集 (真实交易约束: T+1 + 涨跌停 + 双边手续费) 上,
-  主模型 <b>MASTER v1</b> (AAAI 2024) 年化收益 <b>59.4%</b>, 夏普 <b>2.35</b>,
-  最大回撤 <b>-12.5%</b>; 显著超越沪深300基准 (年化 19.6%, 夏普 1.08, 回撤 -15.7%).
+  主模型 <b>MASTER v1</b> (AAAI 2024) 年化收益 <b>43.6%</b>, 夏普 <b>1.63</b>,
+  最大回撤 <b>-21.7%</b>; 显著超越沪深300基准 (年化 19.6%, 夏普 1.08, 回撤 -15.7%).
   关键发现: IC ≠ 实战收益 / 横截面 &gt;&gt; 时序 / Market guidance 有效 / 容量增加反过拟合 /
   Multi-seed 升 ICIR 反降夏普 / IC 长期衰减 + 2026Q2 信号反转 / 真实约束对夏普影响小.
 </div>
@@ -311,7 +311,7 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="metric-worst">15.3</td>
     
-    <td class="metric-best">126.6</td>
+    <td class="metric-best">76.9</td>
     
     <td class="">52.6</td>
     
@@ -328,7 +328,7 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="metric-worst">18.9</td>
     
-    <td class="metric-best">59.4</td>
+    <td class="metric-best">43.6</td>
     
     <td class="">34.2</td>
     
@@ -343,9 +343,9 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="">21.3</td>
     
-    <td class="metric-worst">26.7</td>
+    <td class="">26.7</td>
     
-    <td class="">25.3</td>
+    <td class="metric-worst">26.8</td>
     
     <td class="">26.0</td>
     
@@ -362,7 +362,7 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="metric-worst">0.71</td>
     
-    <td class="metric-best">2.35</td>
+    <td class="metric-best">1.63</td>
     
     <td class="">1.32</td>
     
@@ -379,11 +379,11 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="metric-worst">1.03</td>
     
-    <td class="metric-best">3.57</td>
+    <td class="">2.28</td>
     
     <td class="">1.96</td>
     
-    <td class="">2.38</td>
+    <td class="metric-best">2.38</td>
     
   </tr>
   
@@ -396,7 +396,7 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="metric-worst">0.60</td>
     
-    <td class="metric-best">4.75</td>
+    <td class="metric-best">2.01</td>
     
     <td class="">1.64</td>
     
@@ -413,11 +413,11 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="metric-worst">-31.63</td>
     
-    <td class="metric-best">-12.49</td>
+    <td class="">-21.67</td>
     
     <td class="">-20.93</td>
     
-    <td class="">-17.96</td>
+    <td class="metric-best">-17.96</td>
     
   </tr>
   
@@ -430,7 +430,7 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="metric-worst">50.5</td>
     
-    <td class="metric-best">56.3</td>
+    <td class="metric-best">52.8</td>
     
     <td class="">52.3</td>
     
@@ -445,9 +445,9 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="">-1.85</td>
     
-    <td class="metric-worst">-2.23</td>
+    <td class="">-2.23</td>
     
-    <td class="">-2.04</td>
+    <td class="metric-worst">-2.52</td>
     
     <td class="">-2.05</td>
     
@@ -462,9 +462,9 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="">-2.73</td>
     
-    <td class="metric-worst">-3.47</td>
+    <td class="">-3.47</td>
     
-    <td class="">-3.21</td>
+    <td class="metric-worst">-3.71</td>
     
     <td class="">-3.43</td>
     
@@ -481,9 +481,9 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="">1.163</td>
     
-    <td class="">1.084</td>
+    <td class="">1.158</td>
     
-    <td class="metric-worst">1.170</td>
+    <td class="metric-worst">1.168</td>
     
     <td class="metric-best">0.973</td>
     
@@ -498,9 +498,9 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="metric-worst">-2.99</td>
     
-    <td class="metric-best">31.88</td>
+    <td class="metric-best">18.20</td>
     
-    <td class="">9.40</td>
+    <td class="">10.33</td>
     
     <td class="">11.08</td>
     
@@ -515,9 +515,9 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="metric-worst">-0.01</td>
     
-    <td class="metric-best">1.83</td>
+    <td class="metric-best">1.15</td>
     
-    <td class="">0.78</td>
+    <td class="">0.83</td>
     
     <td class="">0.91</td>
     
@@ -530,9 +530,9 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
     
     <td class="">11.7</td>
     
-    <td class="metric-worst">16.7</td>
+    <td class="">16.7</td>
     
-    <td class="">15.9</td>
+    <td class="metric-worst">16.9</td>
     
     <td class="">15.3</td>
     
@@ -645,17 +645,17 @@ img { max-width: 100%; margin: 12px 0; border: 1px solid #ddd; }
 <table>
   <tr><th>指标</th><th>理想化 (无费/无涨跌停)</th><th>真实 (有费/有涨跌停)</th><th>变化</th></tr>
   
-  <tr><td>总收益 (%)</td><td>115.72</td><td>126.64</td><td>+10.92</td></tr>
+  <tr><td>总收益 (%)</td><td>115.72</td><td>76.88</td><td>-38.84</td></tr>
   
-  <tr><td>年化收益 (%)</td><td>43.70</td><td>59.38</td><td>+15.69</td></tr>
+  <tr><td>年化收益 (%)</td><td>43.70</td><td>43.55</td><td>-0.14</td></tr>
   
-  <tr><td>年化波动 (%)</td><td>19.94</td><td>25.26</td><td>+5.31</td></tr>
+  <tr><td>年化波动 (%)</td><td>19.94</td><td>26.78</td><td>+6.84</td></tr>
   
-  <tr><td>夏普</td><td>2.19</td><td>2.35</td><td>+0.16</td></tr>
+  <tr><td>夏普</td><td>2.19</td><td>1.63</td><td>-0.56</td></tr>
   
-  <tr><td>最大回撤 (%)</td><td>-10.11</td><td>-12.49</td><td>-2.38</td></tr>
+  <tr><td>最大回撤 (%)</td><td>-10.11</td><td>-21.67</td><td>-11.56</td></tr>
   
-  <tr><td>胜率 (%)</td><td>54.34</td><td>56.27</td><td>+1.94</td></tr>
+  <tr><td>胜率 (%)</td><td>54.34</td><td>52.79</td><td>-1.55</td></tr>
   
 </table>
 <p style="font-size:13px;color:#555;">
