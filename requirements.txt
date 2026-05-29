@@ -1,25 +1,72 @@
-# 核心依赖 (PyTorch 需匹配 GPU 驱动, RTX 50 系必须 cu128)
-# 安装命令:
-#   conda create -n astock python=3.10
-#   conda activate astock
-#   pip install torch==2.11.0+cu128 --index-url https://download.pytorch.org/whl/cu128
-#   pip install -r requirements.txt
-
-# 深度学习
+akshare==1.18.64
+annotated-doc==0.0.4
+anyio==4.13.0
+beautifulsoup4==4.14.3
+certifi==2026.5.20
+cffi==2.0.0
+charset-normalizer==3.4.7
+click==8.4.1
+colorama==0.4.6
+contourpy==1.3.2
+curl_cffi==0.15.0
+cycler==0.12.1
+decorator==5.3.1
+et_xmlfile==2.0.0
+exceptiongroup==1.3.1
+filelock==3.29.0
+fonttools==4.63.0
+fsspec==2026.4.0
+h11==0.16.0
+hf-xet==1.5.0
+html5lib==1.1
+httpcore==1.0.9
+httpx==0.28.1
+huggingface_hub==1.17.0
+idna==3.17
+Jinja2==3.1.6
+joblib==1.5.3
+jsonpath==0.82.2
+kiwisolver==1.5.0
+lightgbm==4.6.0
+lxml==6.1.1
+markdown-it-py==4.2.0
+MarkupSafe==3.0.3
+matplotlib==3.10.9
+mdurl==0.1.2
+mini-racer==0.14.1
+mpmath==1.3.0
+networkx==3.4.2
+numpy==2.2.6
+openpyxl==3.1.5
+packaging==26.0
+pandas==2.3.3
+pillow==12.2.0
+pyarrow==24.0.0
+pycparser==3.0
+Pygments==2.20.0
+pyparsing==3.3.2
+python-dateutil==2.9.0.post0
+pytz==2026.2
+PyYAML==6.0.3
+regex==2026.5.9
+requests==2.34.2
+rich==15.0.0
+safetensors==0.7.0
+scikit-learn==1.7.2
+scipy==1.15.3
+shellingham==1.5.4
+six==1.17.0
+soupsieve==2.8.4
+sympy==1.14.0
+tabulate==0.10.0
+threadpoolctl==3.6.0
+tokenizers==0.22.2
 torch==2.11.0+cu128
-
-# 数据处理
-numpy>=2.2,<3
-pandas>=2.3,<3
-pyarrow>=24,<25
-
-# 机器学习
-lightgbm>=4.6,<5
-scikit-learn>=1.7,<2
-
-# 可视化
-matplotlib>=3.10,<4
-
-# 工具
-tqdm>=4.67,<5
-jinja2>=3.1,<4
+tqdm==4.67.3
+transformers==5.9.0
+typer==0.25.1
+typing_extensions==4.15.0
+tzdata==2026.2
+urllib3==2.7.0
+webencodings==0.5.1
+xlrd==2.0.2
