@@ -94,6 +94,9 @@ def build():
     # --- 基本面/规模 ---
     print("[6/7] Fundamental & size ...")
     df["circ_mv_log"] = np.log(df["circ_mv"].clip(lower=1))
+    # PE/PB 滞后30交易日 (财报公告日错位修正)
+    df["pe_ttm"] = df.groupby("ts_code", sort=False)["pe_ttm"].shift(30)
+    df["pb"] = df.groupby("ts_code", sort=False)["pb"].shift(30)
     df["pe_ttm_rank"] = df.groupby("trade_date")["pe_ttm"].rank(pct=True) - 0.5
     df["pb_rank"] = df.groupby("trade_date")["pb"].rank(pct=True) - 0.5
 

@@ -224,6 +224,8 @@ def update_factors(new_dates):
 
     # 基本面 / 规模
     df["circ_mv_log"] = np.log(df["circ_mv"].clip(lower=1))
+    df["pe_ttm"] = df.groupby("ts_code", sort=False)["pe_ttm"].shift(30)
+    df["pb"] = df.groupby("ts_code", sort=False)["pb"].shift(30)
     df["pe_ttm_rank"] = df.groupby("trade_date")["pe_ttm"].rank(pct=True) - 0.5
     df["pb_rank"] = df.groupby("trade_date")["pb"].rank(pct=True) - 0.5
 
