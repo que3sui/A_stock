@@ -506,9 +506,9 @@ def update_market_features(new_dates, data_src):
         full = full.merge(f, on="trade_date", how="outer")
     full = full.sort_values("trade_date").reset_index(drop=True)
 
-    # 市场级新闻特征: news_count only
+    # 市场级新闻特征: news_count only (skip FinBERT sentiment — noisy, see finding #10)
     from code.features.news_sentiment import compute_market_news_features
-    news_feats = compute_market_news_features(data_src)
+    news_feats = compute_market_news_features(data_src, use_finbert=False)
     if not news_feats.empty:
         full = full.merge(news_feats[["trade_date", "news_count"]], on="trade_date", how="left")
         full["news_count"] = full["news_count"].fillna(0.0)

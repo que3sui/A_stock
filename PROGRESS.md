@@ -1,11 +1,11 @@
 # 项目进度记录
 
-> 最后更新: 2026-05-29 (晚间)
-> 截止 6/1 模型 deadline: 3 天
+> 最后更新: 2026-05-31 (下午)
+> 截止 6/1 模型 deadline: 1 天 (明天!)
 >
-> **Day 更新**: 数据增量 3 天 + 权重通道实验 (消融→方案A→SOTA)
+> **Day 更新**: 数据增量至 20260529 + 全模型重训 + bug 修复
 > **模拟交易初始资金**: 1,000,000 元 (100万)
-> **当前 SOTA**: MASTER v1 + 权重独立通道 (夏普 2.35, 总收益 126.6%)
+> **当前 SOTA**: MASTER v1 + 权重独立通道 (夏普 1.35, 总收益 56.5%)
 
 ## 已完成 (Day 1 ~ MASTER v3)
 
@@ -18,24 +18,24 @@
 - `cache/factors_raw.parquet` — 原始20因子 (中性化前)
 - `cache/market_features.parquet` — 12维市场状态信号 (3指数×4特征)
 
-### 模型 (全部out-of-sample 2024-20260528测试集 574 天, **真实交易约束**)
+### 模型 (全部out-of-sample 2024-20260529测试集 575 天, **真实交易约束**)
 
-> ⚠️ **2026-05-29 重训**: 数据更新至 20260528 (+3交易日); 模拟交易初始资金 100万
+> ⚠️ **2026-05-31 重训**: 数据更新至 20260529 (+1交易日); 修复 master_v3 X_w 未传入 bug + FinBERT SSL
 > 已修复 market_features 全期标准化泄露; 已加入手续费(双边0.025%+卖出0.1%)+涨跌停过滤
 
-| 指标            | LGBM     | MLP    | GRU+Att | MASTER v1  | MASTER v3  | Ensemble | HS300  |
-| --------------- | -------- | ------ | ------- | ---------- | ---------- | -------- | ------ |
-| Test IC         | 0.0508   | 0.0531 | 0.0512  | 0.0613     | 0.0589     | 0.0543   | -      |
-| Test RankIC     | 0.0454   | 0.0467 | 0.0427  | 0.0574     | **0.0596** | 0.0550   | -      |
-| 年化 RankICIR   | 5.27     | 5.64   | 4.29    | 6.14       | **6.83**   | 5.54     | -      |
-| 总收益 (真实)   | 30.9%    | 43.8%  | 15.3%   | 74.4%      | **106.9%** | 47.3%    | 43.5%  |
-| 年化收益 (真实) | 24.2%    | 30.6%  | 18.9%   | 40.5%      | **52.5%**  | 29.9%    | 19.1%  |
-| 夏普 (真实)     | 1.13     | 1.20   | 0.71    | 2.00       | **2.22**   | 1.67     | 1.06   |
-| 最大回撤 (真实) | -22.5%   | -20.7% | -31.6%  | **-11.1%** | -17.3%     | -13.2%   | -15.7% |
-| 训练时长        | 10s      | ~2min  | 17min   | 8min       | 25min      | 1min     | -      |
-| 参数量          | 61 trees | 144K   | 44K     | 123K       | 123K × 3   | -        | -      |
+| 指标            | LGBM       | GRU+Att | MASTER v1 | MASTER v3 | Ensemble | HS300  |
+| --------------- | ---------- | ------- | --------- | --------- | -------- | ------ |
+| Test IC         | 0.0508     | 0.0506  | 0.0615    | 0.0525    | 0.0536   | -      |
+| Test RankIC     | 0.0449     | 0.0428  | 0.0554    | 0.0532    | 0.0540   | -      |
+| 年化 RankICIR   | 5.27       | 4.27    | **7.32**  | 6.85      | 6.21     | -      |
+| 总收益 (真实)   | 34.8%      | 27.2%   | **56.5%** | 39.2%     | 31.2%    | 43.1%  |
+| 年化收益 (真实) | 25.3%      | 23.9%   | **36.0%** | 28.7%     | 24.7%    | 18.9%  |
+| 夏普 (真实)     | 1.30       | 0.92    | **1.35**  | 1.13      | 1.08     | 1.04   |
+| 最大回撤 (真实) | **-15.5%** | -28.8%  | -22.5%    | -22.0%    | -21.8%   | -15.7% |
+| 训练时长        | 52s        | 18.5min | 9.6min    | 8.3min    | <1min    | -      |
+| 参数量          | 65 trees   | 44K     | 123K      | 123K × 3  | -        | -      |
 
-**真实 vs 理想化 (MASTER v1)**: 年化收益 43.7% → 40.5% (-3.2pp), 夏普 2.19 → 2.00 (-8.7%); 但累积净值 116% → 74% (-42pp, 复利累积放大). 加费率影响小, 策略真实可行.
+**真实 vs 理想化 (MASTER v1)**: 夏普 1.35; 全模型收益较上次重训普遍下降, 仅 LGBM 逆势上升 (夏普 1.13→1.30). MASTER v1 ICIR 上升但回测收益下降, 再次验证 IC ≠ 选股质量.
 
 ### 权重通道增强实验 (消融 → 方案A SOTA) 🆕
 
@@ -56,9 +56,9 @@
 
 **最佳模型 (终版)**:
 
-- **SOTA**: **MASTER v1 + 权重通道 (夏普 2.35, 总收益 126.6%)** — 独立通道架构 > multi-seed 集成
-- 保守备选: MASTER v3 20f (夏普 2.22, 总收益 106.9%) — 不需要权重数据即可复现
-- 模拟交易推荐: **MASTER v1 + 权重通道** (SOTA)
+- **SOTA**: **MASTER v1 + 权重通道 (夏普 1.35, 总收益 56.5%)** — 独立通道架构
+- 保守备选: LGBM (夏普 1.30, 回撤 -15.5%) — 最低回撤, 最稳健
+- 模拟交易推荐: **MASTER v1 + 权重通道** (夏普最高) 或 **LGBM** (回撤最低)
 
 ### 数据治理修复 (P1 完成)
 
@@ -180,53 +180,64 @@ code/
 - Windows GBK 编码: tqdm 进度条 `█▎` 触发崩溃, 解决: `2>/dev/null`
 - 数据同步: daily/ 从云盘同步了但 market/ 没同步, market_features 少 9 天
 - skip-expensive 过滤条件: 等权模式用 `total/N`, 贪心用 `total`, 别写反
+- **master_v3 X_w 未传入**: `train_one_seed()` 闭包引用 `X_w` 和 `full_endpoints` 但不在作用域内 → NameError; 权重通道模型静默退化
+
+### 12. 2026-05-31 重训观察 🆕
+
+- **全模型回测收益普遍下降**: MASTER v1 74.4%→56.5%, v3 106.9%→39.2%, 仅 LGBM 逆势上升 (30.9%→34.8%)
+- **IC 上升但收益下降**: MASTER v1 ICIR 6.14→7.32 (+19%), 但夏普 2.00→1.35 (-33%). 再次验证发现 #1/#10
+- **可能原因**: 新增 20260529 日数据 + 神经网络训练随机性; 模型找到了更"稳定"但不一定更"赚钱"的局部最优
+- **LGBM 成为黑马**: 夏普 1.30 逼近 MASTER v1 (1.35), 且回撤 -15.5% 为全模型最低, 训练仅 52s
+- **FinBERT SSL 证书错误**: HuggingFace 下载失败 → `incremental_update.py` 改用 `use_finbert=False`, 情感特征已被实验证明有害 (发现 #10)
 
 ## 待完成
 
 1. **报告润色** — HTML 报告框架已生成, 权重通道实验可写入作为核心亮点
-2. **模拟交易准备** (6/1 起) — daily_signal.py 已支持权重通道推理
-   - **推荐 MASTER v1 + 权重通道** (SOTA, 夏普 2.35, 总收益 126.6%)
-   - 保守备选: MASTER v1 20f (夏普 2.00, 最低回撤 -11.1%)
+2. **模拟交易准备** (6/1 起, 明天!) — daily_signal.py 已支持权重通道推理
+   - **推荐 MASTER v1 + 权重通道** (夏普 1.35, 收益最高)
+   - 保守备选: LGBM (夏普 1.30, 回撤最低 -15.5%, 稳健性好)
    - 初始资金: **1,000,000 元 (100万)**
 
 ## 复现命令 (按顺序)
 
 ```bash
-conda activate astock
+# 使用 astock conda 环境 (不可用 base, 缺 CUDA/lightgbm)
+# 直接指定 python 路径: /d/anaconda3/envs/astock/python
 
 # 数据 (首次全量构建)
-python -m code.data.build_panel       # ~10 min
-python -m code.data.universe
-python -m code.data.validate
+/d/anaconda3/envs/astock/python -m code.data.build_panel       # ~10 min
+/d/anaconda3/envs/astock/python -m code.data.universe
+/d/anaconda3/envs/astock/python -m code.data.validate
 
 # 增量更新 (日常, 从云盘)
-python -m code.data.incremental_update --data-source "E:/科大云盘/A股数据"
+/d/anaconda3/envs/astock/python -m code.data.incremental_update --data-source "E:/科大云盘/A股数据"
 
 # 特征 (首次全量构建)
-python -m code.features.factors
-python -m code.features.labels
-python -m code.features.neutralize
-python -m code.features.market_features
+/d/anaconda3/envs/astock/python -m code.features.factors
+/d/anaconda3/envs/astock/python -m code.features.labels
+/d/anaconda3/envs/astock/python -m code.features.neutralize
+/d/anaconda3/envs/astock/python -m code.features.market_features
 
 # 模型
-python -m code.models.lgbm_baseline       # ~10s
-python -m code.models.mlp_baseline        # ~2min
-python -m code.models.gru_att             # ~17min
-python -m code.models.master              # ~8min  <-- v1 主模型
-python -m code.models.master_v3           # ~25min <-- v3 multi-seed (SOTA)
-python -m code.models.ensemble            # ~1min
+/d/anaconda3/envs/astock/python -m code.models.lgbm_baseline       # ~52s
+/d/anaconda3/envs/astock/python -m code.models.gru_att             # ~18.5min
+/d/anaconda3/envs/astock/python -m code.models.master              # ~9.6min  <-- v1 主模型
+/d/anaconda3/envs/astock/python -m code.models.master_v3           # ~8.3min <-- v3 multi-seed
+/d/anaconda3/envs/astock/python -m code.models.ensemble            # <1min
 
 # 回测
-python -m code.backtest.engine --model master --n 10 --k 2
-python -m code.backtest.engine --model master_v3 --n 10 --k 2
-python -m code.backtest.engine --model ensemble --n 10 --k 2
+/d/anaconda3/envs/astock/python -m code.backtest.engine --model master --n 10 --k 2
+/d/anaconda3/envs/astock/python -m code.backtest.engine --model master_v3 --n 10 --k 2
+/d/anaconda3/envs/astock/python -m code.backtest.engine --model ensemble --n 10 --k 2
+/d/anaconda3/envs/astock/python -m code.backtest.engine --model lgbm --n 10 --k 2
+/d/anaconda3/envs/astock/python -m code.backtest.engine --model gru --n 10 --k 2
 
 # 报告
-python -m code.report.build_report --include-v2
+/d/anaconda3/envs/astock/python -m code.report.build_report --include-v2
 
 # 模拟交易 (6/1 起每日, 初始资金 100万)
-python -m code.live.daily_signal --date 20260601 --model master_v3 --n 10 --k 2
-python -m code.live.position_size --signal output/signals/20260601_master_v3.csv --capital 1000000
+/d/anaconda3/envs/astock/python -m code.live.daily_signal --date 20260601 --model master --n 10 --k 2
+/d/anaconda3/envs/astock/python -m code.live.position_size --signal output/signals/20260601_master.csv --capital 1000000
 ```
 
 ## 环境

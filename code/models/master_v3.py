@@ -37,8 +37,8 @@ OUTPUT = ROOT / "output"
 (OUTPUT / "signals").mkdir(parents=True, exist_ok=True)
 
 
-def train_one_seed(seed, X, y, trade_dates, ts_codes, market_X, market_date_idx,
-                   train_dates, valid_dates, test_dates, df_full, device):
+def train_one_seed(seed, X, X_w, y, trade_dates, ts_codes, market_X, market_date_idx,
+                   train_dates, valid_dates, test_dates, df_full, device, full_endpoints):
     """用给定 seed 训练 v1 架构, 返回 test_df (含 score)"""
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -159,8 +159,9 @@ def main():
     test_dfs = []
     seed_metrics = []
     for s in seeds:
-        td, m = train_one_seed(s, X, y, trade_dates, ts_codes, market_X, market_date_idx,
-                                train_dates, valid_dates, test_dates, df_full, device)
+        td, m = train_one_seed(s, X, X_w, y, trade_dates, ts_codes, market_X, market_date_idx,
+                                train_dates, valid_dates, test_dates, df_full, device,
+                                full_endpoints)
         test_dfs.append(td)
         seed_metrics.append(m)
 
