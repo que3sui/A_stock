@@ -1,0 +1,49 @@
+{
+  "signal_date": "20260529",
+  "trade_date": "20260601",
+  "model": "master (seed128_H64_alpha0.6_dropout0.2_lr0.0003, Sharpe 2.57)",
+  "plans": {
+    "A": {
+      "capital": 1000000,
+      "mode": "等权",
+      "n": 8,
+      "total_invested": 997181,
+      "cash_left": 2819,
+      "holdings": {
+        "600157.SH": {"name": "永泰能源", "close": 1.82, "lots": 687, "amount": 125034},
+        "000100.SZ": {"name": "TCL科技", "close": 4.28, "lots": 293, "amount": 125404},
+        "600642.SH": {"name": "申能股份", "close": 10.32, "lots": 122, "amount": 125904},
+        "601857.SH": {"name": "中国石油", "close": 10.87, "lots": 115, "amount": 125005},
+        "002179.SZ": {"name": "中航光电", "close": 36.42, "lots": 35, "amount": 127470},
+        "603160.SH": {"name": "汇顶科技", "close": 61.01, "lots": 21, "amount": 128121},
+        "688516.SH": {"name": "奥特维", "close": 64.49, "lots": 19, "amount": 122531},
+        "000661.SZ": {"name": "长春高新", "close": 73.57, "lots": 16, "amount": 117712}
+      }
+    },
+    "B": {
+      "capital": 60000,
+      "mode": "等权",
+      "n": 5,
+      "total_invested": 57253,
+      "cash_left": 2747,
+      "holdings": {
+        "000100.SZ": {"name": "TCL科技", "close": 4.28, "lots": 29, "amount": 12412},
+        "600642.SH": {"name": "申能股份", "close": 10.32, "lots": 12, "amount": 12384},
+        "603160.SH": {"name": "汇顶科技", "close": 61.01, "lots": 2, "amount": 12202},
+        "688516.SH": {"name": "奥特维", "close": 64.49, "lots": 2, "amount": 12898},
+        "000661.SZ": {"name": "长春高新", "close": 73.57, "lots": 1, "amount": 7357}
+      }
+    },
+    "C": {
+      "capital": 1000,
+      "mode": "等权",
+      "n": 2,
+      "total_invested": 974,
+      "cash_left": 26,
+      "holdings": {
+        "600157.SH": {"name": "永泰能源", "close": 1.82, "lots": 3, "amount": 546},
+        "000100.SZ": {"name": "TCL科技", "close": 4.28, "lots": 1, "amount": 428}
+      }
+    }
+  }
+}

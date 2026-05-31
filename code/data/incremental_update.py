@@ -245,6 +245,21 @@ def update_factors(new_dates):
     # 只保留新日期
     new_rows = df[df["trade_date"].isin(new_dates)].copy()
 
+    # 合并权重因子 (来自 index_weight/, 独立于面板数据)
+    weight_cache = CACHE / "weight_factors.parquet"
+    if weight_cache.exists():
+        wf = pd.read_parquet(weight_cache)
+        wf = wf[wf["trade_date"].isin(new_dates)]
+        if len(wf) > 0:
+            new_rows = new_rows.drop(columns=["hs300_weight", "hs300_dweight", "cyb_weight"],
+                                     errors="ignore")
+            new_rows = new_rows.merge(
+                wf[["trade_date", "ts_code", "hs300_weight", "hs300_dweight", "cyb_weight"]],
+                on=["trade_date", "ts_code"], how="left")
+            for wc in ["hs300_weight", "hs300_dweight", "cyb_weight"]:
+                new_rows[wc] = new_rows[wc].fillna(0.0).astype("float32")
+            print(f"  Merged weight factors from {weight_cache}")
+
     keep = (["trade_date", "ts_code", "industry", "circ_mv", "is_st", "list_days",
              "close", "pre_close", "vwap", "open", "vol", "amount"] + FACTOR_COLS
              + ["hs300_weight", "hs300_dweight", "cyb_weight"])
