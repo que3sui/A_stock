@@ -18,12 +18,10 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from pathlib import Path
 from jinja2 import Template
 
-ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / "cache"
-OUTPUT = ROOT / "output"
+from code.config import ROOT, CACHE, OUTPUT
+
 REPORTS = OUTPUT / "reports"
 FIGS = REPORTS / "figs"
 FIGS.mkdir(parents=True, exist_ok=True)
@@ -31,15 +29,7 @@ FIGS.mkdir(parents=True, exist_ok=True)
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
 plt.rcParams["axes.unicode_minus"] = False
 
-FACTOR_COLS = [
-    "mom_5", "mom_20", "mom_60", "mom_120",
-    "rev_1", "rev_5",
-    "vol_20", "vol_60",
-    "turnover_20", "amihud_20",
-    "mf_net_5", "mf_lg_strength", "mf_elg_strength",
-    "pe_ttm_rank", "pb_rank", "circ_mv_log",
-    "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
-]
+from code.config import FACTOR_COLS
 
 
 # ========== 数据加载 ==========

@@ -15,17 +15,7 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 CACHE = ROOT / "cache"
 
-FACTOR_COLS = [
-    "mom_5", "mom_20", "mom_60", "mom_120",
-    "rev_1", "rev_5",
-    "vol_20", "vol_60",
-    "turnover_20", "amihud_20",
-    "mf_net_5", "mf_lg_strength", "mf_elg_strength",
-    "pe_ttm_rank", "pb_rank", "circ_mv_log",
-    "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
-]
-# 非中性化通道 (穿透, 原始值)
-WEIGHT_COLS = ["hs300_weight", "hs300_dweight", "cyb_weight"]
+from code.config import FACTOR_COLS, WEIGHT_COLS
 
 
 def mad_clip(arr, k=5):

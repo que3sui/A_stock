@@ -1,8 +1,6 @@
-import pandas as pd; import numpy as np; import torch; from pathlib import Path
-from code.models.master import MASTER, T, N_WEIGHT, FACTOR_COLS, N_FEAT
-
-CACHE = Path('cache'); OUTPUT = Path('output')
-WEIGHT_COLS = ['hs300_weight', 'hs300_dweight', 'cyb_weight']
+import pandas as pd; import numpy as np; import torch
+from code.config import CACHE, OUTPUT, FACTOR_COLS, WEIGHT_COLS, T, N_WEIGHT, N_FEAT
+from code.models.master import MASTER
 device = 'cuda'
 
 feats = pd.read_parquet(CACHE / 'features.parquet')

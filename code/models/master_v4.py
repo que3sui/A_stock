@@ -21,24 +21,22 @@ import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from pathlib import Path
 from tqdm import tqdm
 
 from code.models.master import (
     MASTER, DailyPanelDataset, collate_single,
     evaluate, prepare,
-    T, N_WEIGHT, TRAIN_MAX as OLD_TRAIN_MAX, VALID_MAX as OLD_VALID_MAX,
+    T, N_WEIGHT,
+)
+from code.config import (
+    ROOT, CACHE, OUTPUT,
+    FACTOR_COLS, INDUSTRY_FACTORS, FACTOR_COLS_V4, N_FEAT_V4,
+    TRAIN_MAX as OLD_TRAIN_MAX, VALID_MAX as OLD_VALID_MAX,
 )
 
-ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / "cache"
-OUTPUT = ROOT / "output"
 ARCHIVE = OUTPUT / "v4"
 for d in [ARCHIVE, ARCHIVE / "checkpoints", ARCHIVE / "signals"]:
     d.mkdir(parents=True, exist_ok=True)
-
-# === v4 新增: 行业轮动因子 ===
-INDUSTRY_FACTORS = ["ind_mom_20", "ind_rel_str"]
 
 # === v4 新增: 训练窗口 — 缩短到 2019 年起点 ===
 TRAIN_START = 20190101
@@ -54,18 +52,6 @@ N_MIN = 4
 N_MAX = 14
 VOL_THRESHOLD_HIGH = 1.5  # hs300_vol_20 z-score 阈值
 VOL_THRESHOLD_LOW = -0.5
-
-# 扩展后的因子列表 (原始20 + 行业2)
-FACTOR_COLS_V4 = [
-    "mom_5", "mom_20", "mom_60", "mom_120",
-    "rev_1", "rev_5",
-    "vol_20", "vol_60",
-    "turnover_20", "amihud_20",
-    "mf_net_5", "mf_lg_strength", "mf_elg_strength",
-    "pe_ttm_rank", "pb_rank", "circ_mv_log",
-    "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
-] + INDUSTRY_FACTORS
-N_FEAT_V4 = len(FACTOR_COLS_V4)
 
 SEEDS = [128, 1024, 99, 42, 777, 4096, 314, 88, 512, 256]
 HP_GRID = [
@@ -108,7 +94,7 @@ def time_weight(dates, max_date, decay_lambda=DECAY_LAMBDA):
 
 def combined_loss_v4(scores, labels, trade_date, max_date, alpha=0.6):
     """带时间衰减的 combined loss"""
-    from code.models.master import ic_loss, topk_margin_loss
+    from code.losses import ic_loss, topk_margin_loss
     ic_l = ic_loss(scores, labels)
     topk_l = topk_margin_loss(scores, labels)
     tw = time_weight([trade_date], max_date)[0]
@@ -153,21 +139,11 @@ def train_one(seed, X, X_w, y, trade_dates, ts_codes, market_X, market_date_idx,
     valid_dates = [d for d in full_ds.dates if TRAIN_MAX < d <= VALID_MAX]
     test_dates = [d for d in full_ds.dates if d > VALID_MAX]
 
-    def make_sub(dates):
-        sub = object.__new__(DailyPanelDataset)
-        sub.X = X; sub.X_w = X_w; sub.y = y
-        sub.trade_dates = trade_dates
-        sub.market_X = market_X
-        sub.market_date_idx = market_date_idx
-        sub.T = T; sub.dates = dates
-        sub.date_to_endpoints = full_ds.date_to_endpoints
-        return sub
-
-    train_loader = DataLoader(make_sub(train_dates), batch_size=1, shuffle=True,
+    train_loader = DataLoader(full_ds.subset_by_dates(train_dates), batch_size=1, shuffle=True,
                               num_workers=0, collate_fn=collate_single)
-    valid_loader = DataLoader(make_sub(valid_dates), batch_size=1, shuffle=False,
+    valid_loader = DataLoader(full_ds.subset_by_dates(valid_dates), batch_size=1, shuffle=False,
                               num_workers=0, collate_fn=collate_single)
-    test_loader = DataLoader(make_sub(test_dates), batch_size=1, shuffle=False,
+    test_loader = DataLoader(full_ds.subset_by_dates(test_dates), batch_size=1, shuffle=False,
                              num_workers=0, collate_fn=collate_single)
 
     F_market = market_X.shape[1]

@@ -21,55 +21,33 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
-from pathlib import Path
-
-# 复用 v1 的实现
 from code.models.master import (
     MASTER, DailyPanelDataset, collate_single,
     combined_loss, evaluate, prepare,
-    FACTOR_COLS, T, N_FEAT, N_WEIGHT, TRAIN_MAX, VALID_MAX,
+    T, N_FEAT, N_WEIGHT, TRAIN_MAX, VALID_MAX,
 )
+from code.config import ROOT, CACHE, OUTPUT
 
-ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / "cache"
-OUTPUT = ROOT / "output"
 (OUTPUT / "checkpoints").mkdir(parents=True, exist_ok=True)
 (OUTPUT / "signals").mkdir(parents=True, exist_ok=True)
 
 
-def train_one_seed(seed, X, X_w, y, trade_dates, ts_codes, market_X, market_date_idx,
-                   train_dates, valid_dates, test_dates, df_full, device, full_endpoints):
+def train_one_seed(seed, full_ds, train_dates, valid_dates, test_dates,
+                   df_full, device):
     """用给定 seed 训练 v1 架构, 返回 test_df (含 score)"""
     torch.manual_seed(seed)
     np.random.seed(seed)
     print(f"\n{'='*60}\nSeed {seed}\n{'='*60}")
 
-    def make_sub(dates):
-        sub = object.__new__(DailyPanelDataset)
-        sub.X = X
-        sub.X_w = X_w
-        sub.y = y
-        sub.trade_dates = trade_dates
-        sub.market_X = market_X
-        sub.market_date_idx = market_date_idx
-        sub.T = T
-        sub.dates = dates
-        sub.date_to_endpoints = full_endpoints
-        return sub
+    train_loader = DataLoader(full_ds.subset_by_dates(train_dates), batch_size=1, shuffle=True,
+                              num_workers=0, collate_fn=collate_single)
+    valid_loader = DataLoader(full_ds.subset_by_dates(valid_dates), batch_size=1, shuffle=False,
+                              num_workers=0, collate_fn=collate_single)
+    test_loader = DataLoader(full_ds.subset_by_dates(test_dates), batch_size=1, shuffle=False,
+                             num_workers=0, collate_fn=collate_single)
 
-    train_ds = make_sub(train_dates)
-    valid_ds = make_sub(valid_dates)
-    test_ds = make_sub(test_dates)
-
-    train_loader = DataLoader(train_ds, batch_size=1, shuffle=True, num_workers=0,
-                              collate_fn=collate_single)
-    valid_loader = DataLoader(valid_ds, batch_size=1, shuffle=False, num_workers=0,
-                              collate_fn=collate_single)
-    test_loader = DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=0,
-                             collate_fn=collate_single)
-
-    F_market = market_X.shape[1]
-    F_weight = N_WEIGHT if X_w is not None else 0
+    F_market = full_ds.market_X.shape[1]
+    F_weight = N_WEIGHT if full_ds.X_w is not None else 0
     model = MASTER(F_stock=N_FEAT, F_market=F_market, H=64, T=T,
                    nhead=4, dropout=0.2, n_intra_layers=2, n_inter_layers=1,
                    F_weight=F_weight).to(device)
@@ -146,9 +124,6 @@ def main():
 
     print("Building dataset ...")
     full_ds = DailyPanelDataset(X, y, trade_dates, ts_codes, market_X, market_date_idx, T, X_w=X_w)
-    global full_endpoints
-    full_endpoints = full_ds.date_to_endpoints
-
     train_dates = [d for d in full_ds.dates if d <= TRAIN_MAX]
     valid_dates = [d for d in full_ds.dates if TRAIN_MAX < d <= VALID_MAX]
     test_dates = [d for d in full_ds.dates if d > VALID_MAX]
@@ -159,9 +134,8 @@ def main():
     test_dfs = []
     seed_metrics = []
     for s in seeds:
-        td, m = train_one_seed(s, X, X_w, y, trade_dates, ts_codes, market_X, market_date_idx,
-                                train_dates, valid_dates, test_dates, df_full, device,
-                                full_endpoints)
+        td, m = train_one_seed(s, full_ds, train_dates, valid_dates, test_dates,
+                                df_full, device)
         test_dfs.append(td)
         seed_metrics.append(m)
 
@@ -198,15 +172,8 @@ def main():
     merged["score"] = merged[rank_cols].mean(axis=1)
 
     # 计算指标
-    ics, rank_ics = [], []
-    for _, day in merged.groupby("trade_date"):
-        if len(day) < 30 or day["score"].std() == 0:
-            continue
-        ics.append(day["score"].corr(day["label"]))
-        rank_ics.append(day["score"].rank().corr(day["label"].rank()))
-    ic = float(np.mean(ics))
-    rank_ic = float(np.mean(rank_ics))
-    rank_ic_std = float(np.std(rank_ics))
+    from code.metrics import ic_summary
+    ic, rank_ic, rank_ic_std = ic_summary(merged)
 
     metrics = {
         "n_seeds": len(score_cols),

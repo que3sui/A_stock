@@ -25,28 +25,17 @@ import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from pathlib import Path
 from tqdm import tqdm
 
-ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / "cache"
-OUTPUT = ROOT / "output"
+from code.config import (
+    ROOT, CACHE, OUTPUT,
+    FACTOR_COLS, N_FEAT, TRAIN_MAX, VALID_MAX,
+)
+
+T = 30  # v2: longer lookback window
+
 (OUTPUT / "checkpoints").mkdir(parents=True, exist_ok=True)
 (OUTPUT / "signals").mkdir(parents=True, exist_ok=True)
-
-FACTOR_COLS = [
-    "mom_5", "mom_20", "mom_60", "mom_120",
-    "rev_1", "rev_5",
-    "vol_20", "vol_60",
-    "turnover_20", "amihud_20",
-    "mf_net_5", "mf_lg_strength", "mf_elg_strength",
-    "pe_ttm_rank", "pb_rank", "circ_mv_log",
-    "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
-]
-T = 30   # v2: longer window
-N_FEAT = len(FACTOR_COLS)
-TRAIN_MAX = 20221231
-VALID_MAX = 20231231
 
 
 # ========== Dataset ==========
@@ -105,6 +94,22 @@ class DailyPanelDataset(Dataset):
             int(date),
             endpoints,
         )
+
+    def subset_by_dates(self, dates):
+        missing = set(dates) - set(self.date_to_endpoints)
+        if missing:
+            raise ValueError(f"Dates not in dataset: {sorted(missing)[:5]}...")
+
+        sub = object.__new__(type(self))
+        sub.X = self.X
+        sub.y = self.y
+        sub.trade_dates = self.trade_dates
+        sub.market_X = self.market_X
+        sub.market_date_idx = self.market_date_idx
+        sub.T = self.T
+        sub.dates = list(dates)
+        sub.date_to_endpoints = self.date_to_endpoints
+        return sub
 
 
 def collate_single(batch):
@@ -217,31 +222,16 @@ class EMA:
         model.load_state_dict(ema_state)
 
 
-# ========== Loss ==========
+# ========== Loss (v2 uses larger margin=0.2) ==========
 
-def ic_loss(scores, labels):
-    s = scores - scores.mean()
-    l = labels - labels.mean()
-    num = (s * l).sum()
-    den = torch.sqrt((s ** 2).sum() * (l ** 2).sum() + 1e-12)
-    return -num / den
-
+from code.losses import ic_loss, combined_loss
+from code.losses import topk_margin_loss as _topk_margin_loss
 
 def topk_margin_loss(scores, labels, k_ratio=0.2, margin=0.2):
-    """v2: margin 增大到 0.2 (v1=0.1), 拉开 top vs bottom"""
-    n = scores.size(0)
-    k = max(int(n * k_ratio), 5)
-    _, top_idx = torch.topk(labels, k)
-    _, bot_idx = torch.topk(-labels, k)
-    s_top = scores[top_idx].unsqueeze(1)
-    s_bot = scores[bot_idx].unsqueeze(0)
-    margin_loss = torch.clamp(s_bot - s_top + margin, min=0)
-    return margin_loss.mean()
+    return _topk_margin_loss(scores, labels, k_ratio=k_ratio, margin=margin)
 
 
-def combined_loss(scores, labels, alpha=0.5):
-    return alpha * ic_loss(scores, labels) + (1 - alpha) * topk_margin_loss(scores, labels)
-
+from code.metrics import ic_summary
 
 # ========== Evaluate ==========
 
@@ -255,14 +245,8 @@ def evaluate(model, loader, device):
         for s, y, end in zip(scores, y_d.numpy(), endpoints):
             rows.append({"trade_date": date, "ep": int(end), "score": float(s), "label": float(y)})
     df = pd.DataFrame(rows)
-
-    ics, rank_ics = [], []
-    for _, day in df.groupby("trade_date"):
-        if len(day) < 30 or day["score"].std() == 0:
-            continue
-        ics.append(day["score"].corr(day["label"]))
-        rank_ics.append(day["score"].rank().corr(day["label"].rank()))
-    return float(np.mean(ics)), float(np.mean(rank_ics)), float(np.std(rank_ics)), df
+    ic, ric, ric_std = ic_summary(df)
+    return ic, ric, ric_std, df
 
 
 # ========== Main ==========
@@ -315,21 +299,9 @@ def main():
     test_dates = [d for d in full_ds.dates if d > VALID_MAX]
     print(f"  train_days={len(train_dates)}  valid_days={len(valid_dates)}  test_days={len(test_dates)}")
 
-    def make_sub(dates):
-        sub = object.__new__(DailyPanelDataset)
-        sub.X = full_ds.X
-        sub.y = full_ds.y
-        sub.trade_dates = full_ds.trade_dates
-        sub.market_X = full_ds.market_X
-        sub.market_date_idx = full_ds.market_date_idx
-        sub.T = full_ds.T
-        sub.dates = dates
-        sub.date_to_endpoints = full_ds.date_to_endpoints
-        return sub
-
-    train_ds = make_sub(train_dates)
-    valid_ds = make_sub(valid_dates)
-    test_ds = make_sub(test_dates)
+    train_ds = full_ds.subset_by_dates(train_dates)
+    valid_ds = full_ds.subset_by_dates(valid_dates)
+    test_ds = full_ds.subset_by_dates(test_dates)
 
     train_loader = DataLoader(train_ds, batch_size=1, shuffle=True, num_workers=0,
                               collate_fn=collate_single)

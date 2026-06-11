@@ -51,8 +51,7 @@ HP_GRID = [
 ]
 
 
-def train_one(seed, X, X_w, y, trade_dates, ts_codes, market_X, market_date_idx,
-              full_ds, df_full, device, hp_overrides=None):
+def train_one(seed, full_ds, df_full, device, hp_overrides=None):
     """训练一个模型, 返回 (result_dict, test_df)"""
     hp = {"lr": 5e-4, "dropout": 0.2, "alpha": 0.6, "H": 64, "wd": 1e-3}
     if hp_overrides:
@@ -65,28 +64,15 @@ def train_one(seed, X, X_w, y, trade_dates, ts_codes, market_X, market_date_idx,
     valid_dates = [d for d in full_ds.dates if TRAIN_MAX < d <= VALID_MAX]
     test_dates = [d for d in full_ds.dates if d > VALID_MAX]
 
-    def make_sub(dates):
-        sub = object.__new__(DailyPanelDataset)
-        sub.X = X
-        sub.X_w = X_w
-        sub.y = y
-        sub.trade_dates = trade_dates
-        sub.market_X = market_X
-        sub.market_date_idx = market_date_idx
-        sub.T = T
-        sub.dates = dates
-        sub.date_to_endpoints = full_ds.date_to_endpoints
-        return sub
-
-    train_loader = DataLoader(make_sub(train_dates), batch_size=1, shuffle=True,
+    train_loader = DataLoader(full_ds.subset_by_dates(train_dates), batch_size=1, shuffle=True,
                               num_workers=0, collate_fn=collate_single)
-    valid_loader = DataLoader(make_sub(valid_dates), batch_size=1, shuffle=False,
+    valid_loader = DataLoader(full_ds.subset_by_dates(valid_dates), batch_size=1, shuffle=False,
                               num_workers=0, collate_fn=collate_single)
-    test_loader = DataLoader(make_sub(test_dates), batch_size=1, shuffle=False,
+    test_loader = DataLoader(full_ds.subset_by_dates(test_dates), batch_size=1, shuffle=False,
                              num_workers=0, collate_fn=collate_single)
 
-    F_market = market_X.shape[1]
-    F_weight = N_WEIGHT if X_w is not None else 0
+    F_market = full_ds.market_X.shape[1]
+    F_weight = N_WEIGHT if full_ds.X_w is not None else 0
     model = MASTER(F_stock=N_FEAT, F_market=F_market, H=hp["H"], T=T,
                    nhead=4, dropout=hp["dropout"], n_intra_layers=2, n_inter_layers=1,
                    F_weight=F_weight).to(device)
@@ -218,8 +204,7 @@ def main():
     for seed in new_seeds:
         t_seed = time.time()
         print(f"\n  Training seed={seed} ...")
-        r, _ = train_one(seed, X, X_w, y, trade_dates, ts_codes_int,
-                         market_X, market_date_idx, full_ds, df_full, device)
+        r, _ = train_one(seed, full_ds, df_full, device)
         r["train_time_s"] = round(time.time() - t_seed, 1)
         all_results.append(r)
         print(f"    val_rank_ic={r['val_rank_ic']:.4f}  "
@@ -298,8 +283,7 @@ def main():
             short = f"s{seed}_lr{hp_override['lr']:.0e}_d{hp_override['dropout']}_a{hp_override['alpha']}_H{hp_override['H']}"
             short = short.replace("e-0", "e-").replace(".0", "")
             print(f"    hp: {short} ...")
-            r, test_df = train_one(seed, X, X_w, y, trade_dates, ts_codes_int,
-                                   market_X, market_date_idx, full_ds, df_full, device,
+            r, test_df = train_one(seed, full_ds, df_full, device,
                                    hp_overrides=hp_override)
             bt = backtest_one(test_df, panel)
             r.update(bt)

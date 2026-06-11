@@ -269,7 +269,7 @@ def plot_nav(strat_nav, bench_nav, title, save_path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="lgbm",
-                        choices=["lgbm", "mlp", "gru", "master", "master_v2", "master_v3", "ensemble"])
+                        choices=["lgbm", "mlp", "gru", "master", "master_v2", "master_v3", "master_v7", "ensemble"])
     parser.add_argument("--n", type=int, default=10)
     parser.add_argument("--k", type=int, default=2)
     parser.add_argument("--start", type=int, default=20240101)

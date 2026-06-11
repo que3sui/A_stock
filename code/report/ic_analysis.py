@@ -11,14 +11,12 @@ Output:
 import json
 import numpy as np
 import pandas as pd
-from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / "cache"
-OUTPUT = ROOT / "output"
+from code.config import ROOT, CACHE, OUTPUT
+
 REPORTS = OUTPUT / "reports"
 FIGS = REPORTS / "figs"
 FIGS.mkdir(parents=True, exist_ok=True)
@@ -28,15 +26,28 @@ plt.rcParams["axes.unicode_minus"] = False
 
 
 def daily_ic(df_sig):
-    """返回 DataFrame (trade_date, ic, rank_ic)"""
+    """返回 DataFrame (trade_date, ic, rank_ic) — 用于时序图"""
+    from code.metrics import daily_ic as _daily_ic
     out = []
     for d, day in df_sig.groupby("trade_date"):
         if len(day) < 30 or day["score"].std() == 0:
             continue
-        ic = day["score"].corr(day["label"])
-        rank_ic = day["score"].rank().corr(day["label"].rank())
-        out.append((d, ic, rank_ic))
+        out.append((d, day["score"].corr(day["label"]),
+                    day["score"].rank().corr(day["label"].rank())))
     return pd.DataFrame(out, columns=["trade_date", "ic", "rank_ic"])
+
+
+def _to_jsonable(o):
+    """递归转换 numpy 类型为 Python 原生类型 (用于 json.dump)"""
+    if isinstance(o, dict):
+        return {str(k): _to_jsonable(v) for k, v in o.items()}
+    if isinstance(o, list):
+        return [_to_jsonable(v) for v in o]
+    if isinstance(o, (np.integer,)):
+        return int(o)
+    if isinstance(o, (np.floating,)):
+        return float(o)
+    return o
 
 
 def compute_train_ic_via_lgbm():
@@ -45,22 +56,16 @@ def compute_train_ic_via_lgbm():
     print("Loading lgbm model + full features ...")
     with open(OUTPUT / "checkpoints" / "lgbm.pkl", "rb") as f:
         lgbm = pickle.load(f)
-    feats = pd.read_parquet(CACHE / "features.parquet")
-    labels = pd.read_parquet(CACHE / "labels.parquet")
+    feats = pd.read_parquet(CACHE / "features.parquet",
+                            columns=FACTOR_COLS + ["trade_date", "ts_code"])
+    labels = pd.read_parquet(CACHE / "labels.parquet",
+                             columns=["trade_date", "ts_code", "label"])
 
     df = feats.merge(labels[["trade_date", "ts_code", "label"]],
                      on=["trade_date", "ts_code"], how="inner")
     df = df.dropna(subset=["label"]).reset_index(drop=True)
 
-    FACTOR_COLS = [
-        "mom_5", "mom_20", "mom_60", "mom_120",
-        "rev_1", "rev_5",
-        "vol_20", "vol_60",
-        "turnover_20", "amihud_20",
-        "mf_net_5", "mf_lg_strength", "mf_elg_strength",
-        "pe_ttm_rank", "pb_rank", "circ_mv_log",
-        "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
-    ]
+    from code.config import FACTOR_COLS
     X = df[FACTOR_COLS].fillna(0).values.astype(np.float32)
     df["score"] = lgbm.predict(X)
     print(f"  predicted {len(df):,} rows over {df['trade_date'].nunique()} days")
@@ -203,18 +208,7 @@ def main():
         "breakpoint_candidate_years": breakpoints,
     }
     with open(OUTPUT / "ic_segment_metrics.json", "w", encoding="utf-8") as f:
-        # year 是 int64, 需转 int
-        def to_jsonable(o):
-            if isinstance(o, dict):
-                return {str(k): to_jsonable(v) for k, v in o.items()}
-            if isinstance(o, list):
-                return [to_jsonable(v) for v in o]
-            if isinstance(o, (np.integer,)):
-                return int(o)
-            if isinstance(o, (np.floating,)):
-                return float(o)
-            return o
-        json.dump(to_jsonable(metrics), f, indent=2)
+        json.dump(_to_jsonable(metrics), f, indent=2)
 
 
 if __name__ == "__main__":

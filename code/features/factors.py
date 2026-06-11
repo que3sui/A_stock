@@ -4,28 +4,9 @@
 """
 import pandas as pd
 import numpy as np
-from pathlib import Path
 import time
 
-ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / "cache"
-
-FACTOR_COLS = [
-    # 动量 (4)
-    "mom_5", "mom_20", "mom_60", "mom_120",
-    # 反转 (2)
-    "rev_1", "rev_5",
-    # 波动率 (2)
-    "vol_20", "vol_60",
-    # 流动性 (2)
-    "turnover_20", "amihud_20",
-    # 资金流 (3)
-    "mf_net_5", "mf_lg_strength", "mf_elg_strength",
-    # 基本面 (3)
-    "pe_ttm_rank", "pb_rank", "circ_mv_log",
-    # 技术 (4)
-    "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
-]
+from code.config import ROOT, CACHE, FACTOR_COLS
 
 
 def _g_rolling(series, group, window, min_periods, op):
@@ -128,8 +109,11 @@ def build():
         ["trade_date", "ts_code", "industry", "circ_mv", "is_st", "list_days",
          "close", "pre_close", "vwap", "open", "vol", "amount"]
         + FACTOR_COLS
-        + ["hs300_weight", "hs300_dweight", "cyb_weight"]
     )
+    # 权重因子来自 index_weight/ 月频CSV, 不在panel中, 需要时才保留
+    for wc in ["hs300_weight", "hs300_dweight", "cyb_weight"]:
+        if wc in df.columns:
+            keep.append(wc)
     keep = list(dict.fromkeys(keep))  # dedupe (circ_mv_log already in FACTOR_COLS)
 
     # 转 float32

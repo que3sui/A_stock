@@ -34,12 +34,11 @@ ARCHIVE = OUTPUT / "v3_multi_train"
 for d in [ARCHIVE, ARCHIVE / "checkpoints", ARCHIVE / "signals"]:
     d.mkdir(parents=True, exist_ok=True)
 
-SEEDS = [42, 1337, 2024, 88, 777, 1024, 2048, 4096, 99, 314]
+SEEDS = [2024, 88, 777, 1024, 2048, 4096, 99, 314]  # 128,42,1337 已完成
 TOP_K_VAL = 3
 
 
-def train_one_seed(seed, X, X_w, y, trade_dates, ts_codes, market_X, market_date_idx,
-                   full_ds, df_full, device):
+def train_one_seed(seed, full_ds, df_full, device):
     torch.manual_seed(seed)
     np.random.seed(seed)
 
@@ -47,28 +46,15 @@ def train_one_seed(seed, X, X_w, y, trade_dates, ts_codes, market_X, market_date
     valid_dates = [d for d in full_ds.dates if TRAIN_MAX < d <= VALID_MAX]
     test_dates = [d for d in full_ds.dates if d > VALID_MAX]
 
-    def make_sub(dates):
-        sub = object.__new__(DailyPanelDataset)
-        sub.X = X
-        sub.X_w = X_w
-        sub.y = y
-        sub.trade_dates = trade_dates
-        sub.market_X = market_X
-        sub.market_date_idx = market_date_idx
-        sub.T = T
-        sub.dates = dates
-        sub.date_to_endpoints = full_ds.date_to_endpoints
-        return sub
-
-    train_loader = DataLoader(make_sub(train_dates), batch_size=1, shuffle=True,
+    train_loader = DataLoader(full_ds.subset_by_dates(train_dates), batch_size=1, shuffle=True,
                               num_workers=0, collate_fn=collate_single)
-    valid_loader = DataLoader(make_sub(valid_dates), batch_size=1, shuffle=False,
+    valid_loader = DataLoader(full_ds.subset_by_dates(valid_dates), batch_size=1, shuffle=False,
                               num_workers=0, collate_fn=collate_single)
-    test_loader = DataLoader(make_sub(test_dates), batch_size=1, shuffle=False,
+    test_loader = DataLoader(full_ds.subset_by_dates(test_dates), batch_size=1, shuffle=False,
                              num_workers=0, collate_fn=collate_single)
 
-    F_market = market_X.shape[1]
-    F_weight = N_WEIGHT if X_w is not None else 0
+    F_market = full_ds.market_X.shape[1]
+    F_weight = N_WEIGHT if full_ds.X_w is not None else 0
     model = MASTER(F_stock=N_FEAT, F_market=F_market, H=64, T=T,
                    nhead=4, dropout=0.2, n_intra_layers=2, n_inter_layers=1,
                    F_weight=F_weight).to(device)
@@ -168,8 +154,7 @@ def main():
         t_seed = time.time()
         print(f"\n{'='*60}")
         print(f"Training seed={seed} ...")
-        r = train_one_seed(seed, X, X_w, y, trade_dates, ts_codes_int,
-                           market_X, market_date_idx, full_ds, df_full, device)
+        r = train_one_seed(seed, full_ds, df_full, device)
         r["train_time_s"] = round(time.time() - t_seed, 1)
         all_results.append(r)
         print(f"  val_rank_ic={r['val_rank_ic']:.4f}  "

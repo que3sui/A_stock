@@ -14,23 +14,11 @@ import time
 import numpy as np
 import pandas as pd
 import lightgbm as lgb
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / "cache"
-OUTPUT = ROOT / "output"
+from code.config import ROOT, CACHE, OUTPUT, FACTOR_COLS
+
 (OUTPUT / "checkpoints").mkdir(parents=True, exist_ok=True)
 (OUTPUT / "signals").mkdir(parents=True, exist_ok=True)
-
-FACTOR_COLS = [
-    "mom_5", "mom_20", "mom_60", "mom_120",
-    "rev_1", "rev_5",
-    "vol_20", "vol_60",
-    "turnover_20", "amihud_20",
-    "mf_net_5", "mf_lg_strength", "mf_elg_strength",
-    "pe_ttm_rank", "pb_rank", "circ_mv_log",
-    "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
-]
 
 
 def compute_ic(df, score_col="score", label_col="label", min_n=30):

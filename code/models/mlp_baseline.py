@@ -16,28 +16,15 @@ import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from pathlib import Path
 from tqdm import tqdm
 
-ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / "cache"
-OUTPUT = ROOT / "output"
+from code.config import (
+    ROOT, CACHE, OUTPUT,
+    FACTOR_COLS, T, N_FEAT, TRAIN_MAX, VALID_MAX,
+)
+
 (OUTPUT / "checkpoints").mkdir(parents=True, exist_ok=True)
 (OUTPUT / "signals").mkdir(parents=True, exist_ok=True)
-
-FACTOR_COLS = [
-    "mom_5", "mom_20", "mom_60", "mom_120",
-    "rev_1", "rev_5",
-    "vol_20", "vol_60",
-    "turnover_20", "amihud_20",
-    "mf_net_5", "mf_lg_strength", "mf_elg_strength",
-    "pe_ttm_rank", "pb_rank", "circ_mv_log",
-    "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
-]
-T = 20
-N_FEAT = len(FACTOR_COLS)
-TRAIN_MAX = 20221231
-VALID_MAX = 20231231
 
 
 class PanelDataset(Dataset):
@@ -113,12 +100,8 @@ class MLP(nn.Module):
         return self.net(x).squeeze(-1)
 
 
-def ic_loss(pred, target):
-    pred_c = pred - pred.mean()
-    target_c = target - target.mean()
-    num = (pred_c * target_c).sum()
-    den = torch.sqrt((pred_c ** 2).sum() * (target_c ** 2).sum() + 1e-12)
-    return -num / den
+from code.losses import ic_loss
+from code.metrics import ic_summary
 
 
 @torch.no_grad()
@@ -136,13 +119,8 @@ def evaluate(model, loader, device):
         "trade_date": np.concatenate(dates),
         "code_int": np.concatenate(codes),
     })
-    ics, rank_ics = [], []
-    for _, day in df.groupby("trade_date"):
-        if len(day) < 30 or day["score"].std() == 0:
-            continue
-        ics.append(day["score"].corr(day["label"]))
-        rank_ics.append(day["score"].rank().corr(day["label"].rank()))
-    return float(np.mean(ics)), float(np.mean(rank_ics)), float(np.std(rank_ics)), df
+    ic, ric, ric_std = ic_summary(df)
+    return ic, ric, ric_std, df
 
 
 def main():

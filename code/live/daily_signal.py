@@ -26,21 +26,9 @@ import pandas as pd
 import torch
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / "cache"
-OUTPUT = ROOT / "output"
-(OUTPUT / "signals").mkdir(parents=True, exist_ok=True)
+from code.config import ROOT, CACHE, OUTPUT, FACTOR_COLS, WEIGHT_COLS
 
-FACTOR_COLS = [
-    "mom_5", "mom_20", "mom_60", "mom_120",
-    "rev_1", "rev_5",
-    "vol_20", "vol_60",
-    "turnover_20", "amihud_20",
-    "mf_net_5", "mf_lg_strength", "mf_elg_strength",
-    "pe_ttm_rank", "pb_rank", "circ_mv_log",
-    "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
-]
-WEIGHT_COLS = ["hs300_weight", "hs300_dweight", "cyb_weight"]
+(OUTPUT / "signals").mkdir(parents=True, exist_ok=True)
 
 
 def predict_lgbm(features_df):
@@ -309,27 +297,88 @@ def main():
     day_feats = day_feats.sort_values("score", ascending=False)
     print(f"  predicted: {len(day_feats)} stocks")
 
+    # 过滤器: ST/微盘/低流动性/新股 → 排除出买入候选
+    from code.live.signal_filter import filter_signals, load_panel_day
+    panel_day = load_panel_day(args.date)
+    scored = day_feats.set_index("ts_code")[["score"]]
+    passed, excluded, risk_flags = filter_signals(scored, panel_day)
+    if len(excluded) > 0:
+        print(f"  filter excluded: {len(excluded)} stocks "
+              f"(ST={len(excluded[excluded['filter_reason']=='ST'])}, "
+              f"illiquid={len(excluded[excluded['filter_reason'].str.startswith('换手')])}, ...)")
+    # 用过滤后的得分排序 (已持仓的不受过滤影响)
     basic = pd.read_csv(ROOT / "basic.csv")[["ts_code", "name"]]
     day_feats = day_feats.merge(basic, on="ts_code", how="left")
 
+    day_feats["_pass_filter"] = day_feats["ts_code"].isin(passed.index)
+    day_feats_filtered = day_feats[day_feats["_pass_filter"]].copy()
+
+    # 自动加载持仓状态 (如果未显式传 --portfolio)
     portfolio = set(args.portfolio.split(",")) if args.portfolio else set()
     portfolio = {p.strip() for p in portfolio if p.strip()}
 
+    state_file = OUTPUT / "state" / "current_holdings.json"
+    if not portfolio and state_file.exists():
+        import json
+        state = json.load(open(state_file, encoding="utf-8"))
+        held = state.get("stocks", {})
+        if held:
+            portfolio = set(held.keys())
+            print(f"  Auto-loaded {len(portfolio)} holdings from {state_file}")
+
     if not portfolio:
-        action_df = day_feats.head(args.n).copy()
+        action_df = day_feats_filtered.head(args.n).copy()
         action_df["action"] = "buy"
-        print(f"\nInit position: BUY {len(action_df)} stocks")
+        print(f"\nInit position: BUY {len(action_df)} stocks (filtered)")
     else:
-        in_pos = day_feats[day_feats["ts_code"].isin(portfolio)].sort_values("score")
-        sells = in_pos.head(args.k).copy()
-        sells["action"] = "sell"
-        not_in = day_feats[~day_feats["ts_code"].isin(portfolio)].sort_values(
-            "score", ascending=False
-        )
-        buys = not_in.head(args.k).copy()
-        buys["action"] = "buy"
-        action_df = pd.concat([sells, buys], ignore_index=True)
-        print(f"\nRebalance: BUY {len(buys)} / SELL {len(sells)}")
+        # top-N 基于全部股票排序 (持仓股即使被过滤也应保留)
+        top_n_codes = set(day_feats.head(args.n)["ts_code"].values)
+        held_in_top = portfolio & top_n_codes
+        held_out = portfolio - top_n_codes
+        missing_from_signal = portfolio - set(day_feats["ts_code"].values)
+
+        # SELL: 不在 top-N 的持仓, 按得分从低到高, 最多卖 k 只
+        zombie_sells = list(missing_from_signal)
+        sell_candidates = day_feats[day_feats["ts_code"].isin(
+            held_out - missing_from_signal
+        )].copy()
+        sell_candidates = sell_candidates.sort_values("score", ascending=True)
+        k_for_normal = max(0, args.k - len(zombie_sells))
+        sell_candidates = sell_candidates.head(k_for_normal)
+
+        sell_rows = []
+        if not sell_candidates.empty:
+            sell_candidates["action"] = "sell"
+            sell_rows.append(sell_candidates[["action", "ts_code", "name", "score"]])
+        name_map = dict(zip(basic["ts_code"], basic["name"]))
+        for code in zombie_sells:
+            sell_rows.append(pd.DataFrame(
+                [{"action": "sell", "ts_code": code,
+                  "name": name_map.get(code, "?"), "score": float("nan")}]
+            ))
+
+        # BUY: 从过滤后候选池选, 显式排序确保取最高分
+        buy_slots = min(args.k - len(sell_candidates), args.n - len(held_in_top))
+        buy_slots = max(0, buy_slots)
+        buy_pool = day_feats_filtered[
+            day_feats_filtered["ts_code"].isin(top_n_codes - portfolio)
+        ]
+        buy_candidates = buy_pool.sort_values("score", ascending=False).head(buy_slots).copy()
+        buy_candidates["action"] = "buy"
+
+        parts = []
+        if sell_rows:
+            parts.append(pd.concat(sell_rows, ignore_index=True)
+                         if len(sell_rows) > 1 else sell_rows[0])
+        if not buy_candidates.empty:
+            parts.append(buy_candidates[["action", "ts_code", "name", "score"]])
+
+        action_df = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(
+            columns=["action", "ts_code", "name", "score"])
+        n_sell = sum(1 for _, r in action_df.iterrows() if r["action"] == "sell")
+        n_buy = sum(1 for _, r in action_df.iterrows() if r["action"] == "buy")
+        n_hold = len(held_in_top)
+        print(f"\nRebalance: BUY {n_buy} / SELL {n_sell} / HOLD {n_hold}")
 
     action_df = action_df[["action", "ts_code", "name", "score"]]
     out_path = OUTPUT / "signals" / f"{args.date}_{args.model}.csv"

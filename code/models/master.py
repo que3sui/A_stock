@@ -21,31 +21,19 @@ import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from pathlib import Path
 from tqdm import tqdm
 
-ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / "cache"
-OUTPUT = ROOT / "output"
+from code.config import (
+    ROOT, CACHE, OUTPUT,
+    FACTOR_COLS, WEIGHT_COLS,
+    T, N_FEAT, N_WEIGHT, TRAIN_MAX, VALID_MAX,
+    MASTER_H, MASTER_NHEAD, MASTER_DROPOUT,
+    MASTER_N_INTRA_LAYERS, MASTER_N_INTER_LAYERS,
+    MASTER_LR, MASTER_WD, MASTER_ALPHA,
+)
+
 (OUTPUT / "checkpoints").mkdir(parents=True, exist_ok=True)
 (OUTPUT / "signals").mkdir(parents=True, exist_ok=True)
-
-FACTOR_COLS = [
-    "mom_5", "mom_20", "mom_60", "mom_120",
-    "rev_1", "rev_5",
-    "vol_20", "vol_60",
-    "turnover_20", "amihud_20",
-    "mf_net_5", "mf_lg_strength", "mf_elg_strength",
-    "pe_ttm_rank", "pb_rank", "circ_mv_log",
-    "rsi_14", "bias_20", "vwap_dev", "vol_zscore",
-]
-# 非中性化通道: 指数权重 (原始值, 不做行业/市值残差)
-WEIGHT_COLS = ["hs300_weight", "hs300_dweight", "cyb_weight"]
-T = 20
-N_FEAT = len(FACTOR_COLS)
-N_WEIGHT = len(WEIGHT_COLS)
-TRAIN_MAX = 20221231
-VALID_MAX = 20231231
 
 
 # ========== Dataset ==========
@@ -78,6 +66,7 @@ class DailyPanelDataset(Dataset):
         self.dates = sorted(
             d for d, eps in date_eps.items()
             if len(eps) >= min_stocks and d in market_date_idx
+            and market_date_idx[d] >= T - 1  # market window 也要够 (v2 bugfix backport)
         )
         self.date_to_endpoints = {d: np.array(date_eps[d], dtype=np.int64) for d in self.dates}
         print(f"    total days: {len(self.dates)}, "
@@ -114,6 +103,30 @@ class DailyPanelDataset(Dataset):
             endpoints,
             X_w_d,
         )
+
+
+    def subset_by_dates(self, dates):
+        """返回共享底层数据但只包含指定日期的浅拷贝 (替代各处 make_sub 样板)
+
+        NOTE: 使用 object.__new__ 跳过 __init__, 所有 numpy 数组和
+        date_to_endpoints dict 与原对象共享 (只读假设). 若 __init__ 新增
+        属性, 需同步更新此处.
+        """
+        missing = set(dates) - set(self.date_to_endpoints)
+        if missing:
+            raise ValueError(f"Dates not in dataset: {sorted(missing)[:5]}...")
+
+        sub = object.__new__(type(self))
+        sub.X = self.X
+        sub.X_w = self.X_w
+        sub.y = self.y
+        sub.trade_dates = self.trade_dates
+        sub.market_X = self.market_X
+        sub.market_date_idx = self.market_date_idx
+        sub.T = self.T
+        sub.dates = list(dates)  # defensive copy
+        sub.date_to_endpoints = self.date_to_endpoints
+        return sub
 
 
 def collate_single(batch):
@@ -228,36 +241,16 @@ class MASTER(nn.Module):
         return self.head(Z_final).squeeze(-1)
 
 
-# ========== Loss ==========
+# ========== Loss (imported from shared module, re-exported for backward compat) ==========
 
-def ic_loss(scores, labels):
-    s = scores - scores.mean()
-    l = labels - labels.mean()
-    num = (s * l).sum()
-    den = torch.sqrt((s ** 2).sum() * (l ** 2).sum() + 1e-12)
-    return -num / den
-
-
-def topk_margin_loss(scores, labels, k_ratio=0.2):
-    """Top-K margin: 让真实 top-K 的预测分 > 真实 bottom-K 的预测分"""
-    n = scores.size(0)
-    k = max(int(n * k_ratio), 5)
-    _, top_idx = torch.topk(labels, k)
-    _, bot_idx = torch.topk(-labels, k)
-    s_top = scores[top_idx].unsqueeze(1)  # [k, 1]
-    s_bot = scores[bot_idx].unsqueeze(0)  # [1, k]
-    margin = torch.clamp(s_bot - s_top + 0.1, min=0)
-    return margin.mean()
-
-
-def combined_loss(scores, labels, alpha=0.5):
-    return alpha * ic_loss(scores, labels) + (1 - alpha) * topk_margin_loss(scores, labels)
+from code.losses import ic_loss, topk_margin_loss, combined_loss  # noqa: F401
+from code.metrics import ic_summary
 
 
 # ========== Evaluate ==========
 
 @torch.no_grad()
-def evaluate(model, loader, device, code_uniq):
+def evaluate(model, loader, device, code_uniq=None):
     model.eval()
     rows = []
     for X_d, m_d, y_d, date, endpoints, X_w_d in loader:
@@ -268,14 +261,8 @@ def evaluate(model, loader, device, code_uniq):
         for s, y, end in zip(scores, y_d.numpy(), endpoints):
             rows.append({"trade_date": date, "ep": int(end), "score": float(s), "label": float(y)})
     df = pd.DataFrame(rows)
-
-    ics, rank_ics = [], []
-    for _, day in df.groupby("trade_date"):
-        if len(day) < 30 or day["score"].std() == 0:
-            continue
-        ics.append(day["score"].corr(day["label"]))
-        rank_ics.append(day["score"].rank().corr(day["label"].rank()))
-    return float(np.mean(ics)), float(np.mean(rank_ics)), float(np.std(rank_ics)), df
+    ic, ric, ric_std = ic_summary(df)
+    return ic, ric, ric_std, df
 
 
 # ========== Main ==========
@@ -338,23 +325,9 @@ def main():
     test_dates = [d for d in full_ds.dates if d > VALID_MAX]
     print(f"  train_days={len(train_dates)}  valid_days={len(valid_dates)}  test_days={len(test_dates)}")
 
-    # Sub-dataset (用同一份数据, 不同 dates 列表)
-    def make_sub(dates):
-        sub = object.__new__(DailyPanelDataset)
-        sub.X = full_ds.X
-        sub.X_w = full_ds.X_w
-        sub.y = full_ds.y
-        sub.trade_dates = full_ds.trade_dates
-        sub.market_X = full_ds.market_X
-        sub.market_date_idx = full_ds.market_date_idx
-        sub.T = full_ds.T
-        sub.dates = dates
-        sub.date_to_endpoints = full_ds.date_to_endpoints
-        return sub
-
-    train_ds = make_sub(train_dates)
-    valid_ds = make_sub(valid_dates)
-    test_ds = make_sub(test_dates)
+    train_ds = full_ds.subset_by_dates(train_dates)
+    valid_ds = full_ds.subset_by_dates(valid_dates)
+    test_ds = full_ds.subset_by_dates(test_dates)
 
     train_loader = DataLoader(train_ds, batch_size=1, shuffle=True, num_workers=0,
                               collate_fn=collate_single)
@@ -364,14 +337,15 @@ def main():
                              collate_fn=collate_single)
 
     F_market = market_X.shape[1]
-    F_weight = N_WEIGHT if has_weight else 0
-    model = MASTER(F_stock=N_FEAT, F_market=F_market, H=64, T=T,
-                   nhead=4, dropout=0.2, n_intra_layers=2, n_inter_layers=1,
+    F_weight = X_w.shape[1] if has_weight else 0
+    model = MASTER(F_stock=N_FEAT, F_market=F_market, H=MASTER_H, T=T,
+                   nhead=MASTER_NHEAD, dropout=MASTER_DROPOUT,
+                   n_intra_layers=MASTER_N_INTRA_LAYERS, n_inter_layers=MASTER_N_INTER_LAYERS,
                    F_weight=F_weight).to(device)
     nparams = sum(p.numel() for p in model.parameters())
     print(f"\nModel: {nparams:,} params")
 
-    opt = torch.optim.AdamW(model.parameters(), lr=5e-4, weight_decay=1e-3)
+    opt = torch.optim.AdamW(model.parameters(), lr=MASTER_LR, weight_decay=MASTER_WD)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=20)
 
     ckpt = OUTPUT / "checkpoints" / "master.pt"
@@ -391,7 +365,7 @@ def main():
             y_d = y_d.to(device, non_blocking=True)
             X_w_d = X_w_d.to(device, non_blocking=True) if X_w_d.numel() > 0 else None
             pred = model(X_d, m_d, X_w_d)
-            loss = combined_loss(pred, y_d, alpha=0.6)
+            loss = combined_loss(pred, y_d, alpha=MASTER_ALPHA)
             opt.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -416,7 +390,7 @@ def main():
                 break
 
     # 加载最佳权重 → 测试
-    model.load_state_dict(torch.load(ckpt))
+    model.load_state_dict(torch.load(ckpt, weights_only=True))
     test_ic, test_rank_ic, test_rank_ic_std, test_df = evaluate(model, test_loader, device, code_uniq)
 
     # 还原 ts_code (从 endpoint 找到对应 ts_code)
