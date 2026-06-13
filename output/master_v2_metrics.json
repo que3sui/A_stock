@@ -1,0 +1,25 @@
+{
+  "test_days": 576,
+  "test_rows": 454921,
+  "best_val_rank_ic": 0.06573561627385477,
+  "best_epoch": 1,
+  "test_ic_mean": 0.05023045411576039,
+  "test_rank_ic_mean": 0.04418079295308512,
+  "test_rank_ic_std": 0.12481229943645807,
+  "test_rank_icir": 0.35397785004192683,
+  "test_rank_icir_annual": 5.619224165017518,
+  "n_params": 421653,
+  "config": {
+    "T": 30,
+    "H": 96,
+    "nhead": 4,
+    "intra_layers": 3,
+    "inter_layers": 2,
+    "dropout": 0.25,
+    "base_lr": 0.0003,
+    "weight_decay": 0.002,
+    "warmup": 2,
+    "ema_decay": 0.999,
+    "loss": "0.5*IC + 0.5*TopK(margin=0.2)"
+  }
+}

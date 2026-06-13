@@ -1,0 +1,22 @@
+{
+  "strategy": {
+    "total_return": 0.45627617835998535,
+    "annual_return": 0.22476252490035376,
+    "annual_vol": 0.26640351570684245,
+    "sharpe": 0.8436920055918796,
+    "max_drawdown": -0.2897916600198497,
+    "win_rate": 0.5079646017699115
+  },
+  "benchmark": {
+    "total_return": 0.43869531398120176,
+    "annual_return": 0.1955954664559747,
+    "annual_vol": 0.18164457885525212,
+    "sharpe": 1.0768031554842499,
+    "max_drawdown": -0.15663551843388923,
+    "win_rate": 0.5221238938053098
+  },
+  "excess_annual": 0.029167058444379057,
+  "n_holdings": 10,
+  "k_swap": 2,
+  "start_date": 20240101
+}

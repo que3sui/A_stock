@@ -1,0 +1,31 @@
+{
+  "n_seeds": 3,
+  "seeds": [
+    1337,
+    2024,
+    42
+  ],
+  "seed_metrics": [
+    {
+      "seed": 1337,
+      "best_epoch": 1,
+      "best_val_rank_ic": 0.0653443305435102,
+      "test_ic": 0.05804380433755327,
+      "test_rank_ic": 0.0518033444343334
+    },
+    {
+      "seed": 2024,
+      "best_epoch": 1,
+      "best_val_rank_ic": 0.055278604404820506,
+      "test_ic": 0.05932043026569661,
+      "test_rank_ic": 0.04943591834832452
+    }
+  ],
+  "test_days": 579,
+  "test_rows": 459055,
+  "test_ic_mean": 0.05328704569529343,
+  "test_rank_ic_mean": 0.05394015399802945,
+  "test_rank_ic_std": 0.12357997696545868,
+  "test_rank_icir": 0.4364796867401033,
+  "test_rank_icir_annual": 6.928900220674141
+}

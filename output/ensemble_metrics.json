@@ -1,0 +1,19 @@
+{
+  "models": [
+    "master",
+    "lgbm",
+    "gru"
+  ],
+  "weights": {
+    "master": 0.5,
+    "lgbm": 0.3,
+    "gru": 0.2
+  },
+  "test_days": 575,
+  "test_rows": 459668,
+  "test_ic_mean": 0.05361932967566582,
+  "test_rank_ic_mean": 0.053964944487813936,
+  "test_rank_ic_std": 0.1378563318947316,
+  "test_rank_icir": 0.3914578302753897,
+  "test_rank_icir_annual": 6.214200406065674
+}

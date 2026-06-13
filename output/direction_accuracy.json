@@ -1,0 +1,65 @@
+{
+  "mlp": {
+    "n_days": 565,
+    "sign_accuracy_mean": 0.513346738925597,
+    "sign_accuracy_std": 0.05291516022225843,
+    "long_winrate_mean": 0.5216569959669545,
+    "short_winrate_mean": 0.5413310400439335,
+    "long_minus_short": 0.04422064498066902,
+    "long_minus_short_std": 0.13503947854042053
+  },
+  "lgbm": {
+    "n_days": 565,
+    "sign_accuracy_mean": 0.5133177898475518,
+    "sign_accuracy_std": 0.05531264235837811,
+    "long_winrate_mean": 0.5168883723535342,
+    "short_winrate_mean": 0.5373342108211044,
+    "long_minus_short": 0.0406191349029541,
+    "long_minus_short_std": 0.1481572389602661
+  },
+  "gru": {
+    "n_days": 565,
+    "sign_accuracy_mean": 0.5129594972035394,
+    "sign_accuracy_std": 0.060948783395074854,
+    "long_winrate_mean": 0.5186707859184615,
+    "short_winrate_mean": 0.5399233026784275,
+    "long_minus_short": 0.040811922401189804,
+    "long_minus_short_std": 0.15833675861358643
+  },
+  "master": {
+    "n_days": 565,
+    "sign_accuracy_mean": 0.5154221811079553,
+    "sign_accuracy_std": 0.05710342358370876,
+    "long_winrate_mean": 0.5283530738706049,
+    "short_winrate_mean": 0.5494616630149284,
+    "long_minus_short": 0.054074908833116116,
+    "long_minus_short_std": 0.15232840355906793
+  },
+  "master_v2": {
+    "n_days": 565,
+    "sign_accuracy_mean": 0.5126150106590948,
+    "sign_accuracy_std": 0.05128810606372036,
+    "long_winrate_mean": 0.5204986155836032,
+    "short_winrate_mean": 0.5456548039855333,
+    "long_minus_short": 0.04666422426561424,
+    "long_minus_short_std": 0.13154179073602257
+  },
+  "master_v3": {
+    "n_days": 565,
+    "sign_accuracy_mean": 0.5158641340994025,
+    "sign_accuracy_std": 0.050764864306857296,
+    "long_winrate_mean": 0.528730826415659,
+    "short_winrate_mean": 0.5535300022594186,
+    "long_minus_short": 0.05854745584325696,
+    "long_minus_short_std": 0.1327226804879071
+  },
+  "ensemble": {
+    "n_days": 565,
+    "sign_accuracy_mean": 0.5162703835236372,
+    "sign_accuracy_std": 0.061435281449769785,
+    "long_winrate_mean": 0.5228167357454911,
+    "short_winrate_mean": 0.5447289122885628,
+    "long_minus_short": 0.04897392468045759,
+    "long_minus_short_std": 0.16131611038150212
+  }
+}

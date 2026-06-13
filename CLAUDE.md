@@ -83,11 +83,11 @@ daily/ + metric/ + moneyflow/ + stock_st/
 
 ## 共享模块（重构后新增）
 
-| 模块 | 用途 |
-|------|------|
-| `code/config.py` | **单一数据源**: FACTOR_COLS, WEIGHT_COLS, T, TRAIN_MAX, ROOT/CACHE/OUTPUT, MASTER_* 超参数 |
-| `code/losses.py` | `ic_loss()` / `topk_margin_loss()` / `combined_loss()` — 消除 4 处重复 |
-| `code/metrics.py` | `daily_ic()` / `ic_summary()` — 消除 4 处重复 IC 聚合 |
+| 模块              | 用途                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| `code/config.py`  | **单一数据源**: FACTOR*COLS, WEIGHT_COLS, T, TRAIN_MAX, ROOT/CACHE/OUTPUT, MASTER*\* 超参数 |
+| `code/losses.py`  | `ic_loss()` / `topk_margin_loss()` / `combined_loss()` — 消除 4 处重复                      |
+| `code/metrics.py` | `daily_ic()` / `ic_summary()` — 消除 4 处重复 IC 聚合                                       |
 
 **使用约定:** 所有文件的 `FACTOR_COLS`、`WEIGHT_COLS`、`ROOT`/`CACHE`/`OUTPUT` 必须从 `code.config` 导入，不得本地定义。
 
@@ -114,16 +114,16 @@ T=20 (回溯20天), H=64, ~123K参数
 
 ### 模型版本演进
 
-| 版本 | 文件 | 要点 | 状态 |
-|------|------|------|------|
-| v1 | `master.py` | 基础MASTER + 权重通道 | 基线 |
-| v2 | `master_v2.py` | 加深加宽→过拟合（反例） | 反例 |
-| v3 | `master_v3.py` | 3-seed rank-percentile平均 | 已废弃 |
+| 版本          | 文件                     | 要点                                  | 状态            |
+| ------------- | ------------------------ | ------------------------------------- | --------------- |
+| v1            | `master.py`              | 基础MASTER + 权重通道                 | 基线            |
+| v2            | `master_v2.py`           | 加深加宽→过拟合（反例）               | 反例            |
+| v3            | `master_v3.py`           | 3-seed rank-percentile平均            | 已废弃          |
 | **v3_search** | `master_train_search.py` | **10-seed搜索 + Top-3集成，当前SOTA** | **Sharpe 2.47** |
-| v4 | `master_v4.py` | 时间衰减loss + 行业轮动 + 动态仓位 | 实验 |
-| v5 | `master_v5.py` | v4 + 滤波器因子 | 实验 |
-| v6 | `master_v6.py` | v5 + 长窗口 | 实验 |
-| v7 | `master_v7.py` | Sharpe-aware loss | Sharpe 1.90 |
+| v4            | `master_v4.py`           | 时间衰减loss + 行业轮动 + 动态仓位    | 实验            |
+| v5            | `master_v5.py`           | v4 + 滤波器因子                       | 实验            |
+| v6            | `master_v6.py`           | v5 + 长窗口                           | 实验            |
+| v7            | `master_v7.py`           | Sharpe-aware loss                     | Sharpe 1.90     |
 
 **当前SOTA:** `master_train_search.py` 输出到 `output/v3_multi_train/`，最佳种子 314/1024/1337 集成，回测 Sharpe 2.47 (n=10, k=2, 真实约束)。
 
